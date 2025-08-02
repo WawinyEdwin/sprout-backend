@@ -3,13 +3,17 @@ import {
   Controller,
   Get,
   Param,
-  Post,
+  Patch,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Response } from 'express';
 import { RequestWithUser } from 'src/auth/auth.types';
 import { SupabaseAuthGuard } from 'src/supabase/supabase.guard';
+import { UpdateUserIntegrationDto } from './dto/update-userintegration.dto';
 import { IntegrationsService } from './integrations.service';
 import { GoogleAnalyticsService } from './services/googleanalytics.service';
 
@@ -18,6 +22,7 @@ export class IntegrationsController {
   constructor(
     private readonly integrationsService: IntegrationsService,
     private readonly googleAnalyticsService: GoogleAnalyticsService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get()
@@ -26,16 +31,22 @@ export class IntegrationsController {
     return this.integrationsService.findAll();
   }
 
-  @Get('/me')
+  @Get('user')
   @UseGuards(SupabaseAuthGuard)
-  async myIntegrations(@Req() req: RequestWithUser) {
-    return this.integrationsService.myIntegrations(req.user.id);
+  async userIntegrations(@Req() req: RequestWithUser) {
+    return this.integrationsService.userIntegrations(req.user.id);
   }
 
-  @Get(':id')
+  @Patch('user/:integrationId')
   @UseGuards(SupabaseAuthGuard)
-  findOne(@Param('id') id: string) {
-    return this.integrationsService.findOne(+id);
+  async updateUserIntegration(
+    @Param('integrationId') integrationId: string,
+    @Body() updateUserIntegrationDto: UpdateUserIntegrationDto,
+  ) {
+    return await this.integrationsService.updateUserIntegration(
+      integrationId,
+      updateUserIntegrationDto,
+    );
   }
 
   @Get('ga/connect')
@@ -48,9 +59,16 @@ export class IntegrationsController {
   async googleCallback(
     @Query('code') code: string,
     @Query('state') state: string,
+    @Res() res: Response,
   ) {
-    console.log('callback in controller...')
-    return await this.googleAnalyticsService.googleCallback(code, state);
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    try {
+      await this.googleAnalyticsService.googleCallback(code, state);
+      res.redirect(`${frontendUrl}/dashboard/sources?connect=success`);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      res.redirect(`${frontendUrl}/dashboard/sources?connect=error`);
+    }
   }
 
   @Get('ga/sync')

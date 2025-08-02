@@ -6,26 +6,16 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import {
+  AuthTypeEnum,
+  DataSyncFrequencyEnum,
+  HistoricalDataEnum,
+  IntegrationCategoryEnum,
+} from '../integration.enum';
 import { IntegrationType } from '../integration.types';
-
-enum AuthType {
-  OAUTH = 'OAuth',
-  API_KEY = 'API Key',
-}
-
-enum IntegrationCategory {
-  BILLING = 'Billing',
-  ADVERTISING = 'Advertising',
-  CRM = 'CRM',
-  FINANCE = 'Finance',
-  DATABASE = 'Database',
-  ECOMMERCE = 'E-commerce',
-  ANALYTICS = 'Analytics',
-  MARKETING = 'Marketing',
-  CUSTOMER_SERVICE = 'Customer Service',
-}
 
 @Entity({ name: 'integrations' })
 export class Integration {
@@ -41,10 +31,10 @@ export class Integration {
   @Column({ type: 'text' })
   description: string;
 
-  @Column({ type: 'enum', enum: AuthType, default: 'API Key' })
+  @Column({ type: 'enum', enum: AuthTypeEnum, default: 'API Key' })
   authType: string;
 
-  @Column({ type: 'enum', enum: IntegrationCategory, default: 'CRM' })
+  @Column({ type: 'enum', enum: IntegrationCategoryEnum, default: 'CRM' })
   category: string;
 
   @OneToMany(() => Metric, (def) => def.integration)
@@ -56,16 +46,16 @@ export class Integration {
   @UpdateDateColumn()
   updatedAt: Date;
 }
-
+@Unique('UQ_user_integration', ['user', 'integration'])
 @Entity({ name: 'user_integrations' })
 export class UserIntegration {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.userIntegrations)
+  @ManyToOne(() => User, (user) => user.userIntegrations, { nullable: false })
   user: User;
 
-  @ManyToOne(() => Integration)
+  @ManyToOne(() => Integration, { nullable: false })
   integration: Integration;
 
   @Column({ type: 'boolean', default: true })
@@ -73,6 +63,20 @@ export class UserIntegration {
 
   @Column({ type: 'timestamp', nullable: true })
   lastSynced?: Date;
+
+  @Column({
+    type: 'enum',
+    enum: DataSyncFrequencyEnum,
+    default: DataSyncFrequencyEnum.DAILY,
+  })
+  syncFrequency: DataSyncFrequencyEnum;
+
+  @Column({
+    type: 'enum',
+    enum: HistoricalDataEnum,
+    default: HistoricalDataEnum.ALL_AVAILABLE_DATA,
+  })
+  historicalData: HistoricalDataEnum;
 
   @Column({ type: 'jsonb', nullable: true })
   authData?: Record<string, any>; // token, refreshToken

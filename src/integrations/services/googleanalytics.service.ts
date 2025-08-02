@@ -46,30 +46,35 @@ export class GoogleAnalyticsService {
   }
 
   async googleCallback(code: string, state: string) {
-    console.log("received callback", code)
     const decoded = JSON.parse(
       Buffer.from(state, 'base64').toString('utf-8'),
     ) as IState;
-    const { userId, integration } = decoded;
+    try {
+      const { userId, integration } = decoded;
+      const response = await this.httpService.axiosRef.post(
+        'https://oauth2.googleapis.com/token',
+        {
+          code,
+          client_id: this.configService.get<string>('GOOGLE_CLIENT_ID'),
+          client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
+          redirect_uri: this.configService.get<string>('GOOGLE_REDIRECT_URI'),
+          grant_type: 'authorization_code',
+        },
+      );
+      const { access_token, refresh_token, expires_in } = response.data;
 
-    const response = await this.httpService.axiosRef.post(
-      'https://oauth2.googleapis.com/token',
-      {
-        code,
-        client_id: this.configService.get<string>('GOOGLE_CLIENT_ID'),
-        client_secret: this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
-        redirect_uri: this.configService.get<string>('GOOGLE_REDIRECT_URI'),
-        grant_type: 'authorization_code',
-      },
-    );
-
-    const { access_token, refresh_token, expires_in } = response.data;
-
-    await this.integrationService.connectGoogleAnalytics(userId, integration,  {
-      accessToken: access_token,
-      refreshToken: refresh_token,
-      expiresIn: expires_in,
-    });
+      await this.integrationService.connectGoogleAnalytics(
+        userId,
+        integration,
+        {
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresIn: expires_in,
+        },
+      );
+    } catch (error) {
+      Logger.error(error);
+    }
   }
 
   async syncData(userId: string, userIntegrationId: string): Promise<void> {

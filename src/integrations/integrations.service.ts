@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { UpdateUserIntegrationDto } from './dto/update-userintegration.dto';
 import { Integration, UserIntegration } from './entities/integration.entity';
 import { IntegrationType } from './integration.types';
 
@@ -19,30 +20,48 @@ export class IntegrationsService {
     private userIntegrationRepository: Repository<UserIntegration>,
   ) {}
 
+  async updateUserIntegration(
+    integrationId: string,
+    updateUserIntegrationDto: UpdateUserIntegrationDto,
+  ) {
+    return await this.userIntegrationRepository.update(integrationId, {
+      ...updateUserIntegrationDto,
+    });
+  }
+
   async connectGoogleAnalytics(
     userId: string,
     integration: IntegrationType,
     OauthInfo: IOAuthInfo,
-  ) {
-    this.userIntegrationRepository.create({
+  ): Promise<UserIntegration> {
+    const ga = await this.integrationRepository.findOne({
+      where: {
+        key: integration,
+      },
+    });
+
+    if (!ga) {
+      console.log('Failed to get the intergation');
+    }
+    const connection = this.userIntegrationRepository.create({
       user: { id: userId },
       authData: OauthInfo,
-      integration: { key: integration },
+      integration: { id: ga?.id },
     });
+    return await this.userIntegrationRepository.save(connection);
   }
 
   findAll() {
     return this.integrationRepository.find({
-      relations:['metrics']
+      relations: ['metrics'],
     });
   }
 
-  async myIntegrations(userId: string): Promise<Integration[]> {
-    const userIntegrations = await this.userIntegrationRepository.find({
+  async userIntegrations(userId: string): Promise<UserIntegration[]> {
+    return await this.userIntegrationRepository.find({
       where: { user: { id: userId } },
-      relations: ['integration'],
+      relations: ['integration', 'integration.metrics'],
     });
-    return userIntegrations.map((ui) => ui.integration);
   }
 
   async getIntegrationAuthDataByUserId(
