@@ -2,13 +2,13 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
+import { ChatModule } from './chat/chat.module';
+import { DataboardsModule } from './databoards/databoards.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { SupabaseService } from './supabase/supabase.service';
 import { UserModule } from './users/users.module';
-import { SubscriptionsModule } from './subscriptions/subscriptions.module';
-import { ChatModule } from './chat/chat.module';
-import { DataboardsModule } from './databoards/databoards.module';
 
 @Module({
   imports: [
@@ -24,8 +24,8 @@ import { DataboardsModule } from './databoards/databoards.module';
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
       autoLoadEntities: true,
-      synchronize: true,
-      logging: true,
+      synchronize: process.env.NODE_ENV === 'production' ? false : true,
+      logging: process.env.NODE_ENV === 'production' ? false : true,
     }),
     UserModule,
     AuthModule,
