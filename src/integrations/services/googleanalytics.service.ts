@@ -63,15 +63,11 @@ export class GoogleAnalyticsService {
       );
       const { access_token, refresh_token, expires_in } = response.data;
 
-      await this.integrationService.connectGoogleAnalytics(
-        userId,
-        integration,
-        {
-          accessToken: access_token,
-          refreshToken: refresh_token,
-          expiresIn: expires_in,
-        },
-      );
+      await this.integrationService.connectGoogle(userId, integration, {
+        accessToken: access_token,
+        refreshToken: refresh_token,
+        expiresIn: expires_in,
+      });
     } catch (error) {
       Logger.error(error);
     }

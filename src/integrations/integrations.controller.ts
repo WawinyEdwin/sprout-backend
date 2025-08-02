@@ -15,6 +15,7 @@ import { RequestWithUser } from 'src/auth/auth.types';
 import { SupabaseAuthGuard } from 'src/supabase/supabase.guard';
 import { UpdateUserIntegrationDto } from './dto/update-userintegration.dto';
 import { IntegrationsService } from './integrations.service';
+import { GoogleAdsService } from './services/googleads.service';
 import { GoogleAnalyticsService } from './services/googleanalytics.service';
 
 @Controller('integrations')
@@ -22,6 +23,7 @@ export class IntegrationsController {
   constructor(
     private readonly integrationsService: IntegrationsService,
     private readonly googleAnalyticsService: GoogleAnalyticsService,
+    private readonly googleAdsService: GoogleAdsService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -56,7 +58,7 @@ export class IntegrationsController {
   }
 
   @Get('ga/authorize/google/callback')
-  async googleCallback(
+  async googleAnalyticsCallback(
     @Query('code') code: string,
     @Query('state') state: string,
     @Res() res: Response,
@@ -80,5 +82,27 @@ export class IntegrationsController {
       payload.userId,
       payload.userIntegrationId,
     );
+  }
+
+  @Get('google-ads/connect')
+  @UseGuards(SupabaseAuthGuard)
+  generateAdsURL(@Req() req: RequestWithUser) {
+    return this.googleAdsService.generateAuthUrl(req.user.id);
+  }
+
+  @Get('google-ads/authorize/google/callback')
+  async googleAdsCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    try {
+      await this.googleAdsService.googleCallback(code, state);
+      res.redirect(`${frontendUrl}/dashboard/sources?connect=success`);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      res.redirect(`${frontendUrl}/dashboard/sources?connect=error`);
+    }
   }
 }

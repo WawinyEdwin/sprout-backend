@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UpdateUserIntegrationDto } from './dto/update-userintegration.dto';
@@ -29,7 +29,7 @@ export class IntegrationsService {
     });
   }
 
-  async connectGoogleAnalytics(
+  async connectGoogle(
     userId: string,
     integration: IntegrationType,
     OauthInfo: IOAuthInfo,
@@ -41,7 +41,7 @@ export class IntegrationsService {
     });
 
     if (!ga) {
-      console.log('Failed to get the intergation');
+      Logger.warn('Failed to get the intergation');
     }
     const connection = this.userIntegrationRepository.create({
       user: { id: userId },
@@ -50,6 +50,7 @@ export class IntegrationsService {
     });
     return await this.userIntegrationRepository.save(connection);
   }
+
 
   findAll() {
     return this.integrationRepository.find({
