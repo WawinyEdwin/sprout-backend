@@ -17,6 +17,7 @@ import { UpdateUserIntegrationDto } from './dto/update-userintegration.dto';
 import { IntegrationsService } from './integrations.service';
 import { GoogleAdsService } from './services/googleads.service';
 import { GoogleAnalyticsService } from './services/googleanalytics.service';
+import { FacebookAdsService } from './services/facebookads.service';
 
 @Controller('integrations')
 export class IntegrationsController {
@@ -24,6 +25,7 @@ export class IntegrationsController {
     private readonly integrationsService: IntegrationsService,
     private readonly googleAnalyticsService: GoogleAnalyticsService,
     private readonly googleAdsService: GoogleAdsService,
+    private readonly facebookAdsService: FacebookAdsService,
     private readonly configService: ConfigService,
   ) {}
 
@@ -99,6 +101,28 @@ export class IntegrationsController {
     const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     try {
       await this.googleAdsService.googleCallback(code, state);
+      res.redirect(`${frontendUrl}/dashboard/sources?connect=success`);
+    } catch (error) {
+      console.error('Google OAuth callback error:', error);
+      res.redirect(`${frontendUrl}/dashboard/sources?connect=error`);
+    }
+  }
+
+  @Get('facebook-ads/connect')
+  @UseGuards(SupabaseAuthGuard)
+  generatefbURL(@Req() req: RequestWithUser) {
+    return this.facebookAdsService.generateAuthUrl(req.user.id);
+  }
+
+  @Get('facebook-ads/authorize/fb/callback')
+  async facebookAdsCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
+    try {
+      await this.facebookAdsService.facebookCallback(code, state);
       res.redirect(`${frontendUrl}/dashboard/sources?connect=success`);
     } catch (error) {
       console.error('Google OAuth callback error:', error);

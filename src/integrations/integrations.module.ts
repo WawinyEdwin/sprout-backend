@@ -9,6 +9,7 @@ import {
 } from './entities/integration.entity';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
+import { FacebookAdsService } from './services/facebookads.service';
 import { GoogleAdsService } from './services/googleads.service';
 import { GoogleAnalyticsService } from './services/googleanalytics.service';
 
@@ -19,6 +20,11 @@ import { GoogleAnalyticsService } from './services/googleanalytics.service';
     HttpModule,
   ],
   controllers: [IntegrationsController],
-  providers: [IntegrationsService, GoogleAnalyticsService, GoogleAdsService],
+  providers: [
+    IntegrationsService,
+    GoogleAnalyticsService,
+    GoogleAdsService,
+    FacebookAdsService,
+  ],
 })
 export class IntegrationsModule {}

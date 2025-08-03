@@ -56,7 +56,7 @@ export class GoogleAdsService {
       );
       const { access_token, refresh_token, expires_in } = response.data;
 
-      await this.integrationService.connectGoogle(userId, integration, {
+      await this.integrationService.saveOAuthIntegration(userId, integration, {
         accessToken: access_token,
         refreshToken: refresh_token,
         expiresIn: expires_in,

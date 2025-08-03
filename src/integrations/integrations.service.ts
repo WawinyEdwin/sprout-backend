@@ -7,8 +7,9 @@ import { IntegrationType } from './integration.types';
 
 interface IOAuthInfo {
   accessToken: string;
-  refreshToken: string;
-  expiresIn: string;
+  refreshToken?: string;
+  expiresIn?: string;
+  fbUserId?: string;
 }
 
 @Injectable()
@@ -29,7 +30,7 @@ export class IntegrationsService {
     });
   }
 
-  async connectGoogle(
+  async saveOAuthIntegration(
     userId: string,
     integration: IntegrationType,
     OauthInfo: IOAuthInfo,
@@ -50,7 +51,6 @@ export class IntegrationsService {
     });
     return await this.userIntegrationRepository.save(connection);
   }
-
 
   findAll() {
     return this.integrationRepository.find({

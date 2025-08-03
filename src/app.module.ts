@@ -25,7 +25,7 @@ import { UserModule } from './users/users.module';
       database: process.env.DB_NAME,
       autoLoadEntities: true,
       synchronize: process.env.NODE_ENV === 'production' ? false : true,
-      logging: process.env.NODE_ENV === 'production' ? false : true,
+      // logging: process.env.NODE_ENV === 'production' ? false : true,
     }),
     UserModule,
     AuthModule,
