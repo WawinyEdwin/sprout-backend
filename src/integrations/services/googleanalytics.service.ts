@@ -7,13 +7,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Mutex } from 'async-mutex';
 import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { analyticsadmin_v1beta, google } from 'googleapis';
 import { IOAuthInfo } from '../integration.types';
 import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
-
-import { Mutex } from 'async-mutex';
 
 @Injectable()
 export class GoogleAnalyticsService {
@@ -92,7 +91,7 @@ export class GoogleAnalyticsService {
         auth: authClient,
       });
 
-      // Step 1: List all accounts for the authenticated user.
+      // List all accounts for the authenticated user.
       const accountsResponse = await analyticsAdminClient.accounts.list({});
       const accounts = accountsResponse.data.accounts || [];
 
@@ -103,7 +102,7 @@ export class GoogleAnalyticsService {
       const allProperties: analyticsadmin_v1beta.Schema$GoogleAnalyticsAdminV1betaProperty[] =
         [];
 
-      // Step 2: For each account, list its properties.
+      // For each account, list its properties.
       for (const account of accounts) {
         if (account.name) {
           try {
@@ -117,7 +116,6 @@ export class GoogleAnalyticsService {
             const properties = propertiesResponse.data.properties || [];
             allProperties.push(...properties);
           } catch (listError) {
-            // Log the error but continue to the next account.
             this.logger.error(
               `Failed to list properties for account ${account.name}:`,
               listError,
@@ -125,7 +123,12 @@ export class GoogleAnalyticsService {
           }
         }
       }
-
+      await this.integrationService.updateWorkspaceIntegration(
+        workspaceIntegrationId,
+        {
+          lastSynced: new Date().toLocaleString(),
+        },
+      );
       return allProperties;
     } catch (error) {
       this.logger.error(

@@ -1,8 +1,20 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Mutex } from 'async-mutex';
+import { IOAuthInfo } from '../integration.types';
 import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
+import {
+  calculateNetProfitMargin,
+  extractBalanceByBankAccounts,
+  findMetricValue,
+} from '../utils/quickbooks.utils';
 
 @Injectable()
 export class QuickbookService {
@@ -10,6 +22,7 @@ export class QuickbookService {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;
+  private readonly refreshMutex = new Mutex();
 
   constructor(
     private readonly integrationService: IntegrationsService,
@@ -23,6 +36,148 @@ export class QuickbookService {
     this.redirectUri = this.configService.get<string>(
       'QUICKBOOKS_REDIRECT_URI',
     )!;
+  }
+
+  async getQuickbooksMetrics(
+    workspaceId: string,
+    workspaceIntegrationId: string,
+  ): Promise<any> {
+    try {
+      const integration =
+        await this.integrationService.findWorkspaceIntegrationByWorkspaceId(
+          workspaceId,
+          workspaceIntegrationId,
+        );
+
+      const rawAuthData = integration.authData;
+      if (!rawAuthData) {
+        throw new BadRequestException(
+          'Missing auth information for this integration',
+        );
+      }
+
+      const authData = rawAuthData as IOAuthInfo;
+      const updatedAuthData = await this.refreshTokenIfNeeded(
+        workspaceId,
+        workspaceIntegrationId,
+        authData,
+      );
+
+      if (!updatedAuthData.accessToken || !updatedAuthData.quickbooksRealmId) {
+        throw new BadRequestException(
+          'QuickBooks auth data is incomplete. Please re-authenticate.',
+        );
+      }
+
+      const realmId = updatedAuthData.quickbooksRealmId;
+      const accessToken = updatedAuthData.accessToken;
+      const headers = {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      };
+
+      this.logger.log(
+        `Fetching quickbooks data for user ${workspaceId}, realmId: ${realmId}`,
+      );
+
+      const baseUrl = `https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}`;
+      const [
+        cashFlowReport,
+        profitLossReport,
+        salesByProductReport,
+        balanceSheet,
+      ] = await Promise.all([
+        this.httpService.axiosRef.get(
+          `${baseUrl}/reports/CashFlow?minorversion=75`,
+          {
+            headers,
+          },
+        ),
+
+        this.httpService.axiosRef.get(
+          `${baseUrl}/reports/ProfitAndLoss?minorversion=75`,
+          {
+            headers,
+          },
+        ),
+
+        this.httpService.axiosRef.get(
+          `${baseUrl}/reports/ItemSales?minorversion=75`,
+          { headers },
+        ),
+
+        this.httpService.axiosRef.get(
+          `${baseUrl}/reports/BalanceSheet?date_macro=Last Fiscal Year-to-date&minorversion=75`,
+          {
+            headers,
+          },
+        ),
+      ]);
+
+      const metrics = {
+        netIncome: findMetricValue(cashFlowReport.data.Rows.Row, 'Net Income'),
+        cashFlowReport: cashFlowReport.data,
+        profitLossReport: profitLossReport.data,
+        salesByProductReport: salesByProductReport.data,
+        balanceSheet: balanceSheet.data,
+      };
+
+      const processedMetrics = {
+        netIncomeCash: findMetricValue(
+          metrics.cashFlowReport?.Rows?.Row,
+          'Net Income',
+        ),
+        totalExpensesAccrual: findMetricValue(
+          metrics.profitLossReport.Rows.Row,
+          'Total Expenses',
+        ),
+        grossProfit: findMetricValue(
+          metrics.profitLossReport.Rows.Row,
+          'Gross Profit',
+        ),
+        netProfitMarginAccrual: calculateNetProfitMargin(
+          metrics.profitLossReport,
+        ),
+        // revenueGrowth: calculateRevenueGrowth(metrics.profitLossReport),
+        // customerPaymentsByProduct: extractCustomerPaymentsByProduct(
+        //   metrics.salesByProductReport,
+        // ),
+        balanceByBankAccounts: extractBalanceByBankAccounts(
+          metrics.balanceSheet,
+        ),
+        // salesByProductReport: salesByProductReport.data,
+      };
+
+      await this.integrationService.updateWorkspaceIntegration(
+        workspaceIntegrationId,
+        {
+          lastSynced: new Date().toLocaleString(),
+        },
+      );
+
+      return processedMetrics;
+    } catch (error) {
+      this.logger.error(
+        'Error fetching QuickBooks metrics:',
+        error.response?.data || error.message,
+      );
+      const quickbooksErrorCode = error.response?.data?.Fault?.Error[0]?.code;
+      if (quickbooksErrorCode === '5020') {
+        throw new BadRequestException(
+          'Permission Denied: The connected QuickBooks account does not have sufficient permissions to view these reports. Please re-authenticate with an admin account.',
+        );
+      }
+
+      if (quickbooksErrorCode === '3100') {
+        throw new BadRequestException(
+          'Invalid realmId or authorization. Please re-authenticate.',
+        );
+      }
+
+      throw new InternalServerErrorException(
+        'Failed to fetch QuickBooks metrics.',
+      );
+    }
   }
 
   generateAuthUrl(workspaceId: string): string {
@@ -59,12 +214,7 @@ export class QuickbookService {
           },
         },
       );
-      const {
-        access_token,
-        refresh_token,
-        expires_in,
-        // x_refresh_token_expires_in,
-      } = response.data;
+      const { access_token, refresh_token, expires_in } = response.data;
 
       await this.integrationService.saveOAuthIntegration(
         workspaceId,
@@ -73,32 +223,107 @@ export class QuickbookService {
           accessToken: access_token,
           refreshToken: refresh_token,
           expiresIn: expires_in,
+          tokenExpiresAt: Date.now() + expires_in * 1000,
           quickbooksRealmId: realmId,
         },
       );
     } catch (error) {
       this.logger.error(error);
+      throw new InternalServerErrorException(
+        'Failed to process QuickBooks callback',
+      );
     }
   }
 
-  async refreshQuickBooksToken(refreshToken: string) {
-    const response = await this.httpService.axiosRef.post(
-      'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
-      new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-      }),
-      {
-        auth: {
-          username: this.clientId,
-          password: this.clientSecret,
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      },
-    );
+  private async refreshTokenIfNeeded(
+    workspaceId: string,
+    workspaceIntegrationId: string,
+    authData: IOAuthInfo,
+  ): Promise<IOAuthInfo> {
+    const now = Date.now();
+    const expirationTime = authData.tokenExpiresAt || 0;
+    const buffer = 5 * 60 * 1000; // Refresh if token expires in < 5 minutes
 
-    return response.data; // Contains new access/refresh tokens
+    if (expirationTime - now < buffer) {
+      this.logger.warn(
+        `QuickBooks token for integration ${workspaceIntegrationId} is about to expire. Refreshing...`,
+      );
+
+      const release = await this.refreshMutex.acquire();
+      try {
+        const updatedIntegration =
+          await this.integrationService.findWorkspaceIntegrationByWorkspaceId(
+            workspaceId,
+            workspaceIntegrationId,
+          );
+        const updatedAuthData = updatedIntegration.authData as IOAuthInfo;
+
+        if (updatedAuthData.tokenExpiresAt - Date.now() > buffer) {
+          this.logger.log(
+            'QuickBooks token already refreshed by another process.',
+          );
+          return updatedAuthData;
+        }
+
+        const refreshedTokens = await this.refreshQuickBooksToken(
+          updatedAuthData.refreshToken,
+        );
+
+        updatedAuthData.accessToken = refreshedTokens.access_token;
+        updatedAuthData.refreshToken = refreshedTokens.refresh_token; // QuickBooks usually returns a new refresh token
+        updatedAuthData.expiresIn = refreshedTokens.expires_in;
+        updatedAuthData.tokenExpiresAt =
+          Date.now() + refreshedTokens.expires_in * 1000;
+
+        await this.integrationService.updateOAuthTokens(
+          workspaceIntegrationId,
+          updatedAuthData,
+        );
+
+        this.logger.log('Successfully refreshed QuickBooks access token.');
+        return updatedAuthData;
+      } catch (error) {
+        this.logger.error(
+          'Error refreshing QuickBooks access token:',
+          error.response?.data || error.message,
+        );
+        throw new BadRequestException(
+          'Failed to refresh QuickBooks token. Please re-authenticate.',
+        );
+      } finally {
+        release();
+      }
+    }
+
+    return authData;
+  }
+
+  private async refreshQuickBooksToken(refreshToken: string) {
+    try {
+      const response = await this.httpService.axiosRef.post(
+        'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+        new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+        }),
+        {
+          auth: {
+            username: this.clientId,
+            password: this.clientSecret,
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
+        },
+      );
+      return response.data;
+    } catch (error) {
+      this.logger.error(
+        'Error in refreshQuickBooksToken:',
+        error.response?.data || error.message,
+      );
+      throw error;
+    }
   }
 }

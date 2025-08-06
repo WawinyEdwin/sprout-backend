@@ -1,4 +1,4 @@
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { DataSyncFrequencyEnum, HistoricalDataEnum } from '../integration.enum';
 
 export class CreateWorkspaceIntegrationDto {
@@ -8,4 +8,7 @@ export class CreateWorkspaceIntegrationDto {
   @IsString()
   @IsEnum(HistoricalDataEnum)
   historicalData: HistoricalDataEnum;
+
+  @IsOptional()
+  lastSynced: string;
 }

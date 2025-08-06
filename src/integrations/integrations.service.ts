@@ -37,7 +37,7 @@ export class IntegrationsService {
     workspaceId: string,
     integrationId: string,
   ): Promise<WorkspaceIntegration> {
-    const WorkspaceIntegration = await this.workspaceIntegrationRepo.findOne({
+    const workspaceIntegration = await this.workspaceIntegrationRepo.findOne({
       where: {
         id: integrationId,
         workspace: {
@@ -46,11 +46,11 @@ export class IntegrationsService {
       },
     });
 
-    if (!WorkspaceIntegration) {
+    if (!workspaceIntegration) {
       throw new NotFoundException('User does not have this integration');
     }
 
-    return WorkspaceIntegration;
+    return workspaceIntegration;
   }
 
   async updateWorkspaceIntegration(
@@ -93,33 +93,15 @@ export class IntegrationsService {
     });
   }
 
-  async WorkspaceIntegrations(userId: string): Promise<WorkspaceIntegration[]> {
+  async workspaceIntegrations(
+    workspaceId: string,
+  ): Promise<WorkspaceIntegration[]> {
     return await this.workspaceIntegrationRepo.find({
       where: {
-        // workspace: { id: workspaceId },
+        workspace: { id: workspaceId },
         connected: true,
       },
       relations: ['integration', 'integration.metrics'],
     });
-  }
-
-  async getIntegrationAuthDataByUserId(
-    userId: string,
-    WorkspaceIntegrationId: string,
-  ): Promise<WorkspaceIntegration> {
-    const data = await this.workspaceIntegrationRepo.findOne({
-      where: {
-        // workspace: { id: workspaceId },
-        id: WorkspaceIntegrationId,
-      },
-    });
-    if (!data) {
-      throw new NotFoundException('Intergration does not exits');
-    }
-    return data;
-  }
-
-  findOne(id: number) {
-    return `This action returns a #${id} integration`;
   }
 }

@@ -5,13 +5,14 @@ import {
   Logger,
   Param,
   Patch,
+  Post,
   Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
-import { AuthGuard } from 'src/auth/guards/auth.guard';
+import { AuthGuard } from '../auth/guards/auth.guard';
 import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration.dto';
 import { IntegrationsService } from './integrations.service';
 import { FacebookAdsService } from './services/facebookads.service';
@@ -41,8 +42,8 @@ export class IntegrationsController {
     private readonly configService: ConfigService,
   ) {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
-    this.oauthErrorUri = `${this.frontendUrl}/dashboard/sources?connect=success`;
-    this.oauthSuccessUri = `${this.frontendUrl}/dashboard/sources?connect=error`;
+    this.oauthSuccessUri = `${this.frontendUrl}/dashboard/sources?connect=success`;
+    this.oauthErrorUri = `${this.frontendUrl}/dashboard/sources?connect=error`;
   }
 
   @Get()
@@ -53,8 +54,8 @@ export class IntegrationsController {
 
   @Get('user')
   @UseGuards(AuthGuard)
-  async WorkspaceIntegrations(@Query('workspaceId') workspaceId: string) {
-    return this.integrationsService.WorkspaceIntegrations(workspaceId);
+  async workspaceIntegrations(@Query('workspaceId') workspaceId: string) {
+    return this.integrationsService.workspaceIntegrations(workspaceId);
   }
 
   @Patch('user/:integrationId')
@@ -103,7 +104,7 @@ export class IntegrationsController {
     }
   }
 
-  @Get('ga/properties')
+  @Post('ga/properties')
   @UseGuards(AuthGuard)
   async gaProperties(
     @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
@@ -114,7 +115,7 @@ export class IntegrationsController {
     );
   }
 
-  @Get('ga/sync/:propertyId')
+  @Post('ga/sync/:propertyId')
   @UseGuards(AuthGuard)
   async syncData(
     @Param('propertyId') propertyId: string,
@@ -163,8 +164,20 @@ export class IntegrationsController {
       await this.facebookAdsService.facebookCallback(code, state);
       res.redirect(this.oauthSuccessUri);
     } catch (error) {
+      this.logger.error('FB OAuth callback failed:', error.stack || error);
       res.redirect(this.oauthErrorUri);
     }
+  }
+
+  @Post('facebook-ads/sync')
+  @UseGuards(AuthGuard)
+  async getFBAdsData(
+    @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
+  ) {
+    return this.facebookAdsService.getAdAccountMetrics(
+      payload.workspaceId,
+      payload.workspaceIntegrationId,
+    );
   }
 
   @Get('stripe/connect')
@@ -204,8 +217,23 @@ export class IntegrationsController {
       await this.quickbookService.quickbookCallback(code, state, realmId);
       res.redirect(this.oauthSuccessUri);
     } catch (error) {
+      this.logger.error(
+        'Quickbooks OAuth callback failed:',
+        error.stack || error,
+      );
       res.redirect(this.oauthErrorUri);
     }
+  }
+
+  @Post('quickbooks/sync/')
+  @UseGuards(AuthGuard)
+  async syncQuickBooksData(
+    @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
+  ) {
+    return await this.quickbookService.getQuickbooksMetrics(
+      payload.workspaceId,
+      payload.workspaceIntegrationId,
+    );
   }
 
   @Get('shopify/connect')
