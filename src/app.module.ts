@@ -14,6 +14,8 @@ import { SupabaseModule } from './supabase/supabase.module';
 import { SupabaseService } from './supabase/supabase.service';
 import { UserModule } from './users/users.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
+import { DataPipelinesModule } from './data-pipelines/data-pipelines.module';
 
 @Module({
   imports: [
@@ -45,6 +47,8 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     WorkspacesModule,
     KpiModule,
     RagModule,
+    SchedulerModule,
+    DataPipelinesModule,
   ],
   providers: [SupabaseService],
 })

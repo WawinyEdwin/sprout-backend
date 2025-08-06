@@ -9,18 +9,16 @@ import {
   RawIntegrationDataEvent,
   WorkspaceIntegration,
 } from './entities/integration.entity';
+import { FacebookAdsService } from './facebook-ads/facebookads.service';
+import { GoogleAnalyticsService } from './ga/googleanalytics.service';
+import { GoogleAdsService } from './google-ads/googleads.service';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
-import { FacebookAdsService } from './services/facebookads.service';
-import { GoogleAdsService } from './services/googleads.service';
-import { GoogleAnalyticsService } from './services/googleanalytics.service';
-import { HubspotService } from './services/hubspot.service';
-import { MailchimpService } from './services/mailchimp.service';
-import { QuickbookService } from './services/quickbooks.service';
-import { SalesforceService } from './services/salesforce.service';
-import { ShopifyService } from './services/shopify.service';
-import { StripeService } from './services/stripe.service';
-import { ZendeskService } from './services/zendesk.service';
+import { MailchimpService } from './mailchimp/mailchimp.service';
+import { QuickbookService } from './quickbooks/quickbooks.service';
+import { SalesforceService } from './salesforce/salesforce.service';
+import { ShopifyService } from './shopify/shopify.service';
+import { StripeService } from './stripe/stripe.service';
 
 @Module({
   imports: [
@@ -41,12 +39,10 @@ import { ZendeskService } from './services/zendesk.service';
     GoogleAdsService,
     FacebookAdsService,
     StripeService,
-    ZendeskService,
-    MailchimpService,
     SalesforceService,
     ShopifyService,
-    HubspotService,
     QuickbookService,
+    MailchimpService,
   ],
 })
 export class IntegrationsModule {}

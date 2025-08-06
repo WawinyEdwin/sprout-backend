@@ -14,7 +14,7 @@ import {
   calculateNetProfitMargin,
   extractBalanceByBankAccounts,
   findMetricValue,
-} from '../utils/quickbooks.utils';
+} from './quickbooks.utils';
 
 @Injectable()
 export class QuickbookService {

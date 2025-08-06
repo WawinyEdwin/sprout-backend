@@ -14,14 +14,15 @@ import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration.dto';
+import { FacebookAdsService } from './facebook-ads/facebookads.service';
+import { GoogleAnalyticsService } from './ga/googleanalytics.service';
+import { GoogleAdsService } from './google-ads/googleads.service';
 import { IntegrationsService } from './integrations.service';
-import { FacebookAdsService } from './services/facebookads.service';
-import { GoogleAdsService } from './services/googleads.service';
-import { GoogleAnalyticsService } from './services/googleanalytics.service';
-import { QuickbookService } from './services/quickbooks.service';
-import { SalesforceService } from './services/salesforce.service';
-import { ShopifyService } from './services/shopify.service';
-import { StripeService } from './services/stripe.service';
+import { MailchimpService } from './mailchimp/mailchimp.service';
+import { QuickbookService } from './quickbooks/quickbooks.service';
+import { SalesforceService } from './salesforce/salesforce.service';
+import { ShopifyService } from './shopify/shopify.service';
+import { StripeService } from './stripe/stripe.service';
 
 @Controller('integrations')
 export class IntegrationsController {
@@ -40,6 +41,7 @@ export class IntegrationsController {
     private readonly shopifyService: ShopifyService,
     private readonly salesforceService: SalesforceService,
     private readonly configService: ConfigService,
+    private readonly mailchimpService: MailchimpService,
   ) {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
     this.oauthSuccessUri = `${this.frontendUrl}/dashboard/sources?connect=success`;
@@ -273,6 +275,26 @@ export class IntegrationsController {
   ) {
     try {
       await this.salesforceService.salesforceCallback(code, state);
+      res.redirect(this.oauthSuccessUri);
+    } catch (error) {
+      res.redirect(this.oauthErrorUri);
+    }
+  }
+
+  @Get('mailchimp/connect')
+  @UseGuards(AuthGuard)
+  generatemailchimpURL(@Query('workspaceId') workspaceId: string) {
+    return this.mailchimpService.generateAuthUrl(workspaceId);
+  }
+
+  @Get('mailchimp/authorize/mailchimp/callback')
+  async mailchimpCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.mailchimpService.mailchimpCallback(code, state);
       res.redirect(this.oauthSuccessUri);
     } catch (error) {
       res.redirect(this.oauthErrorUri);
