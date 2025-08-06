@@ -63,7 +63,7 @@ export class AuthService {
           ...userMetadata,
         },
         emailRedirectTo:
-          process.env.EMAIL_REDIRECT ?? 'http://localhost:3000/auth/signin?redirect=/onboarding',
+          process.env.EMAIL_REDIRECT,
       },
     });
 

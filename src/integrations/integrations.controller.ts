@@ -2,61 +2,87 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   Param,
   Patch,
   Query,
-  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
-import { RequestWithUser } from 'src/auth/auth.types';
-import { SupabaseAuthGuard } from 'src/supabase/supabase.guard';
-import { UpdateUserIntegrationDto } from './dto/update-userintegration.dto';
+import { AuthGuard } from 'src/auth/guards/auth.guard';
+import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration.dto';
 import { IntegrationsService } from './integrations.service';
+import { FacebookAdsService } from './services/facebookads.service';
 import { GoogleAdsService } from './services/googleads.service';
 import { GoogleAnalyticsService } from './services/googleanalytics.service';
-import { FacebookAdsService } from './services/facebookads.service';
+import { QuickbookService } from './services/quickbooks.service';
+import { SalesforceService } from './services/salesforce.service';
+import { ShopifyService } from './services/shopify.service';
+import { StripeService } from './services/stripe.service';
 
 @Controller('integrations')
 export class IntegrationsController {
+  private readonly logger = new Logger(IntegrationsController.name);
+  private readonly oauthSuccessUri: string;
+  private readonly oauthErrorUri: string;
+  private readonly frontendUrl: string;
+
   constructor(
     private readonly integrationsService: IntegrationsService,
     private readonly googleAnalyticsService: GoogleAnalyticsService,
     private readonly googleAdsService: GoogleAdsService,
     private readonly facebookAdsService: FacebookAdsService,
+    private readonly quickbookService: QuickbookService,
+    private readonly stripeService: StripeService,
+    private readonly shopifyService: ShopifyService,
+    private readonly salesforceService: SalesforceService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
+    this.oauthErrorUri = `${this.frontendUrl}/dashboard/sources?connect=success`;
+    this.oauthSuccessUri = `${this.frontendUrl}/dashboard/sources?connect=error`;
+  }
 
   @Get()
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(AuthGuard)
   findAll() {
     return this.integrationsService.findAll();
   }
 
   @Get('user')
-  @UseGuards(SupabaseAuthGuard)
-  async userIntegrations(@Req() req: RequestWithUser) {
-    return this.integrationsService.userIntegrations(req.user.id);
+  @UseGuards(AuthGuard)
+  async WorkspaceIntegrations(@Query('workspaceId') workspaceId: string) {
+    return this.integrationsService.WorkspaceIntegrations(workspaceId);
   }
 
   @Patch('user/:integrationId')
-  @UseGuards(SupabaseAuthGuard)
-  async updateUserIntegration(
+  @UseGuards(AuthGuard)
+  async updateWorkspaceIntegration(
     @Param('integrationId') integrationId: string,
-    @Body() updateUserIntegrationDto: UpdateUserIntegrationDto,
+    @Body() updateWorkspaceIntegrationDto: UpdateWorkspaceIntegrationDto,
   ) {
-    return await this.integrationsService.updateUserIntegration(
+    return await this.integrationsService.updateWorkspaceIntegration(
       integrationId,
-      updateUserIntegrationDto,
+      updateWorkspaceIntegrationDto,
+    );
+  }
+
+  @Patch('disconnect/:workspaceIntergrationId')
+  @UseGuards(AuthGuard)
+  async disconnectIntegration(
+    @Param('userIntergrationId') userIntergrationId: string,
+  ) {
+    return await this.integrationsService.disconnectIntegration(
+      userIntergrationId,
     );
   }
 
   @Get('ga/connect')
-  @UseGuards(SupabaseAuthGuard)
-  generateURL(@Req() req: RequestWithUser) {
-    return this.googleAnalyticsService.generateAuthUrl(req.user.id);
+  @UseGuards(AuthGuard)
+  generateURL(@Query('workspaceId') workspaceId: string) {
+    return this.googleAnalyticsService.generateAuthUrl(workspaceId);
   }
 
   @Get('ga/authorize/google/callback')
@@ -65,31 +91,46 @@ export class IntegrationsController {
     @Query('state') state: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     try {
       await this.googleAnalyticsService.googleCallback(code, state);
-      res.redirect(`${frontendUrl}/dashboard/sources?connect=success`);
+      res.redirect(this.oauthSuccessUri);
     } catch (error) {
-      console.error('Google OAuth callback error:', error);
-      res.redirect(`${frontendUrl}/dashboard/sources?connect=error`);
+      this.logger.error(
+        'Google Analytics OAuth callback failed:',
+        error.stack || error,
+      );
+      res.redirect(this.oauthErrorUri);
     }
   }
 
-  @Get('ga/sync')
-  @UseGuards(SupabaseAuthGuard)
-  async syncData(
-    @Body() payload: { userId: string; userIntegrationId: string },
+  @Get('ga/properties')
+  @UseGuards(AuthGuard)
+  async gaProperties(
+    @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
   ) {
-    return await this.googleAnalyticsService.syncData(
-      payload.userId,
-      payload.userIntegrationId,
+    return await this.googleAnalyticsService.getGoogleAnalyticsProperties(
+      payload.workspaceId,
+      payload.workspaceIntegrationId,
+    );
+  }
+
+  @Get('ga/sync/:propertyId')
+  @UseGuards(AuthGuard)
+  async syncData(
+    @Param('propertyId') propertyId: string,
+    @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
+  ) {
+    return await this.googleAnalyticsService.getGaData(
+      propertyId,
+      payload.workspaceId,
+      payload.workspaceIntegrationId,
     );
   }
 
   @Get('google-ads/connect')
-  @UseGuards(SupabaseAuthGuard)
-  generateAdsURL(@Req() req: RequestWithUser) {
-    return this.googleAdsService.generateAuthUrl(req.user.id);
+  @UseGuards(AuthGuard)
+  generateAdsURL(@Query('workspaceId') workspaceId: string) {
+    return this.googleAdsService.generateAuthUrl(workspaceId);
   }
 
   @Get('google-ads/authorize/google/callback')
@@ -98,20 +139,18 @@ export class IntegrationsController {
     @Query('state') state: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     try {
       await this.googleAdsService.googleCallback(code, state);
-      res.redirect(`${frontendUrl}/dashboard/sources?connect=success`);
+      res.redirect(this.oauthSuccessUri);
     } catch (error) {
-      console.error('Google OAuth callback error:', error);
-      res.redirect(`${frontendUrl}/dashboard/sources?connect=error`);
+      res.redirect(this.oauthErrorUri);
     }
   }
 
   @Get('facebook-ads/connect')
-  @UseGuards(SupabaseAuthGuard)
-  generatefbURL(@Req() req: RequestWithUser) {
-    return this.facebookAdsService.generateAuthUrl(req.user.id);
+  @UseGuards(AuthGuard)
+  generatefbURL(@Query('workspaceId') workspaceId: string) {
+    return this.facebookAdsService.generateAuthUrl(workspaceId);
   }
 
   @Get('facebook-ads/authorize/fb/callback')
@@ -120,13 +159,95 @@ export class IntegrationsController {
     @Query('state') state: string,
     @Res() res: Response,
   ) {
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL');
     try {
       await this.facebookAdsService.facebookCallback(code, state);
-      res.redirect(`${frontendUrl}/dashboard/sources?connect=success`);
+      res.redirect(this.oauthSuccessUri);
     } catch (error) {
-      console.error('Google OAuth callback error:', error);
-      res.redirect(`${frontendUrl}/dashboard/sources?connect=error`);
+      res.redirect(this.oauthErrorUri);
+    }
+  }
+
+  @Get('stripe/connect')
+  @UseGuards(AuthGuard)
+  generateStripeURL(@Query('workspaceId') workspaceId: string) {
+    return this.stripeService.generateAuthUrl(workspaceId);
+  }
+
+  @Get('stripe/authorize/stripe/callback')
+  async stripeCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.stripeService.stripeCallback(code, state);
+      res.redirect(this.oauthSuccessUri);
+    } catch (error) {
+      res.redirect(this.oauthErrorUri);
+    }
+  }
+
+  @Get('quickbooks/connect')
+  @UseGuards(AuthGuard)
+  generateQuickBooksURL(@Query('workspaceId') workspaceId: string) {
+    return this.quickbookService.generateAuthUrl(workspaceId);
+  }
+
+  @Get('quickbooks/authorize/quickbooks/callback')
+  async quickbookCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Query('realmId') realmId: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.quickbookService.quickbookCallback(code, state, realmId);
+      res.redirect(this.oauthSuccessUri);
+    } catch (error) {
+      res.redirect(this.oauthErrorUri);
+    }
+  }
+
+  @Get('shopify/connect')
+  @UseGuards(AuthGuard)
+  generateShopifyURL(
+    @Query('workspaceId') workspaceId: string,
+    @Query('shop') shop: string,
+  ) {
+    return this.shopifyService.generateAuthUrl(workspaceId, shop);
+  }
+
+  @Get('shopify/authorize/shopify/callback')
+  async shopifyCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.shopifyService.shopifyCallback(code, state);
+      res.redirect(this.oauthSuccessUri);
+    } catch (error) {
+      res.redirect(this.oauthErrorUri);
+    }
+  }
+
+  @Get('salesforce/connect')
+  @UseGuards(AuthGuard)
+  generateSalesforceURL(@Query('workspaceId') workspaceId: string) {
+    return this.salesforceService.generateAuthUrl(workspaceId);
+  }
+
+  @Get('salesforce/authorize/salesforce/callback')
+  async salesforceCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.salesforceService.salesforceCallback(code, state);
+      res.redirect(this.oauthSuccessUri);
+    } catch (error) {
+      res.redirect(this.oauthErrorUri);
     }
   }
 }

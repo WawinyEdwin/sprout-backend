@@ -3,12 +3,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
-import { IState } from '../integration.types';
+import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
+// import { GoogleAdsApi } from 'google-ads-api';
 
 @Injectable()
 export class GoogleAdsService {
+  private readonly logger = new Logger(GoogleAdsService.name);
   private oauthClient: OAuth2Client;
+  // private adsClient: GoogleAdsApi
 
   constructor(
     private readonly integrationService: IntegrationsService,
@@ -22,10 +25,10 @@ export class GoogleAdsService {
     );
   }
 
-  generateAuthUrl(userId: string): string {
+  generateAuthUrl(workspaceId: string): string {
     const scopes = ['https://www.googleapis.com/auth/adwords'];
     const statePayload = {
-      userId,
+      workspaceId,
       integration: 'google_ads',
     };
     const state = Buffer.from(JSON.stringify(statePayload)).toString('base64');
@@ -39,11 +42,9 @@ export class GoogleAdsService {
   }
 
   async googleCallback(code: string, state: string) {
-    const decoded = JSON.parse(
-      Buffer.from(state, 'base64').toString('utf-8'),
-    ) as IState;
     try {
-      const { userId, integration } = decoded;
+      const decoded = getEncodedState(state);
+      const { workspaceId, integration } = decoded;
       const response = await this.httpService.axiosRef.post(
         'https://oauth2.googleapis.com/token',
         {
@@ -56,13 +57,17 @@ export class GoogleAdsService {
       );
       const { access_token, refresh_token, expires_in } = response.data;
 
-      await this.integrationService.saveOAuthIntegration(userId, integration, {
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        expiresIn: expires_in,
-      });
+      await this.integrationService.saveOAuthIntegration(
+        workspaceId,
+        integration,
+        {
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          expiresIn: expires_in,
+        },
+      );
     } catch (error) {
-      Logger.error(error);
+      this.logger.error(error);
     }
   }
 }

@@ -1,21 +1,17 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
-import { SupabaseAuthGuard } from 'src/supabase/supabase.guard';
+import { AuthGuard } from '../auth/guards/auth.guard';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuthService } from './auth.service';
 import { RequestWithUser } from './auth.types';
 import { AuthDto } from './dto/auth.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly workspaceService: WorkspacesService,
+  ) {}
 
   @Get('logout')
   async logout() {
@@ -28,11 +24,20 @@ export class AuthController {
   }
 
   @Post('login')
-  async login(@Body() payload: AuthDto) {
-    return await this.authService.loginWithEmailAndPassword(
+  async login(@Body() payload: AuthDto, res: Response) {
+    const loginResponse = await this.authService.loginWithEmailAndPassword(
       payload.email,
       payload.password,
     );
+    const workpaceInfo = await this.workspaceService.findWorkpaceByUserId(
+      loginResponse.user.id,
+    );
+
+    return {
+      access_token: loginResponse.session.access_token,
+      user_metadata: loginResponse.user.user_metadata,
+      workspace: workpaceInfo,
+    };
   }
 
   @Post('signup')
@@ -45,7 +50,7 @@ export class AuthController {
   }
 
   @Get('status')
-  @UseGuards(SupabaseAuthGuard)
+  @UseGuards(AuthGuard)
   async getUserStatus(@Req() req: RequestWithUser) {
     const user = req.user;
     return {

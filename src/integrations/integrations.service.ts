@@ -1,78 +1,116 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { UpdateUserIntegrationDto } from './dto/update-userintegration.dto';
-import { Integration, UserIntegration } from './entities/integration.entity';
-import { IntegrationType } from './integration.types';
-
-interface IOAuthInfo {
-  accessToken: string;
-  refreshToken?: string;
-  expiresIn?: string;
-  fbUserId?: string;
-}
+import { DeepPartial, Repository } from 'typeorm';
+import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration.dto';
+import {
+  Integration,
+  WorkspaceIntegration,
+} from './entities/integration.entity';
+import { IntegrationType, IOAuthInfo } from './integration.types';
 
 @Injectable()
 export class IntegrationsService {
+  private readonly logger = new Logger(IntegrationsService.name);
   constructor(
     @InjectRepository(Integration)
-    private integrationRepository: Repository<Integration>,
-    @InjectRepository(UserIntegration)
-    private userIntegrationRepository: Repository<UserIntegration>,
+    private integrationRepo: Repository<Integration>,
+    @InjectRepository(WorkspaceIntegration)
+    private workspaceIntegrationRepo: Repository<WorkspaceIntegration>,
   ) {}
 
-  async updateUserIntegration(
-    integrationId: string,
-    updateUserIntegrationDto: UpdateUserIntegrationDto,
+  async disconnectIntegration(workspaceIntegrationId: string) {
+    return await this.workspaceIntegrationRepo.update(workspaceIntegrationId, {
+      connected: false,
+    });
+  }
+
+  async updateOAuthTokens(
+    WorkspaceIntegrationId: string,
+    oauthData: Partial<IOAuthInfo>,
   ) {
-    return await this.userIntegrationRepository.update(integrationId, {
-      ...updateUserIntegrationDto,
+    return await this.workspaceIntegrationRepo.update(WorkspaceIntegrationId, {
+      authData: oauthData as DeepPartial<Record<string, any>>,
+    });
+  }
+
+  async findWorkspaceIntegrationByWorkspaceId(
+    workspaceId: string,
+    integrationId: string,
+  ): Promise<WorkspaceIntegration> {
+    const WorkspaceIntegration = await this.workspaceIntegrationRepo.findOne({
+      where: {
+        id: integrationId,
+        workspace: {
+          id: workspaceId,
+        },
+      },
+    });
+
+    if (!WorkspaceIntegration) {
+      throw new NotFoundException('User does not have this integration');
+    }
+
+    return WorkspaceIntegration;
+  }
+
+  async updateWorkspaceIntegration(
+    integrationId: string,
+    updateWorkspaceIntegrationDto: UpdateWorkspaceIntegrationDto,
+  ) {
+    return await this.workspaceIntegrationRepo.update(integrationId, {
+      ...updateWorkspaceIntegrationDto,
     });
   }
 
   async saveOAuthIntegration(
-    userId: string,
+    workspaceId: string,
     integration: IntegrationType,
-    OauthInfo: IOAuthInfo,
-  ): Promise<UserIntegration> {
-    const ga = await this.integrationRepository.findOne({
+    OauthInfo: Partial<IOAuthInfo>,
+  ): Promise<WorkspaceIntegration> {
+    this.logger.log(
+      `Saving auth info for ${integration} in workspaceId: ${workspaceId}`,
+    );
+    const ga = await this.integrationRepo.findOne({
       where: {
         key: integration,
       },
     });
 
     if (!ga) {
-      Logger.warn('Failed to get the intergation');
+      this.logger.warn('Failed to get the intergation');
     }
-    const connection = this.userIntegrationRepository.create({
-      user: { id: userId },
+    const connection = this.workspaceIntegrationRepo.create({
+      workspace: { id: workspaceId },
       authData: OauthInfo,
       integration: { id: ga?.id },
     });
-    return await this.userIntegrationRepository.save(connection);
+    return await this.workspaceIntegrationRepo.save(connection);
   }
 
   findAll() {
-    return this.integrationRepository.find({
+    return this.integrationRepo.find({
       relations: ['metrics'],
     });
   }
 
-  async userIntegrations(userId: string): Promise<UserIntegration[]> {
-    return await this.userIntegrationRepository.find({
-      where: { user: { id: userId } },
+  async WorkspaceIntegrations(userId: string): Promise<WorkspaceIntegration[]> {
+    return await this.workspaceIntegrationRepo.find({
+      where: {
+        // workspace: { id: workspaceId },
+        connected: true,
+      },
       relations: ['integration', 'integration.metrics'],
     });
   }
 
   async getIntegrationAuthDataByUserId(
     userId: string,
-    userIntegrationId: string,
-  ): Promise<UserIntegration> {
-    const data = await this.userIntegrationRepository.findOne({
+    WorkspaceIntegrationId: string,
+  ): Promise<WorkspaceIntegration> {
+    const data = await this.workspaceIntegrationRepo.findOne({
       where: {
-        user: { id: userId },
-        id: userIntegrationId,
+        // workspace: { id: workspaceId },
+        id: WorkspaceIntegrationId,
       },
     });
     if (!data) {

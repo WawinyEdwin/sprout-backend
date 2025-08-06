@@ -4,10 +4,10 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { SupabaseService } from './supabase.service';
+import { SupabaseService } from '../../supabase/supabase.service';
 
 @Injectable()
-export class SupabaseAuthGuard implements CanActivate {
+export class AuthGuard implements CanActivate {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -23,7 +23,7 @@ export class SupabaseAuthGuard implements CanActivate {
 
     if (error || !data?.user) throw new UnauthorizedException('Invalid token');
 
-    req.user = data.user; // Optional: attach user to request
+    req.user = data.user;
     return true;
   }
 }

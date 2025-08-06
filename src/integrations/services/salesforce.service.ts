@@ -5,8 +5,8 @@ import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
 
 @Injectable()
-export class QuickbookService {
-  private readonly logger = new Logger(QuickbookService.name);
+export class SalesforceService {
+  private readonly logger = new Logger(SalesforceService.name);
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;
@@ -16,54 +16,47 @@ export class QuickbookService {
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.clientId = this.configService.get<string>('QUICKBOOKS_CLIENT_ID')!;
+    this.clientId = this.configService.get<string>('SALESFORCE_CONSUMER_KEY')!;
     this.clientSecret = this.configService.get<string>(
-      'QUICKBOOKS_CLIENT_SECRET',
+      'SALESFORCE_CONSUMER_SECRET',
     )!;
     this.redirectUri = this.configService.get<string>(
-      'QUICKBOOKS_REDIRECT_URI',
+      'SALESFORCE_REDIRECT_URI',
     )!;
   }
 
   generateAuthUrl(workspaceId: string): string {
-    const scopes = 'com.intuit.quickbooks.accounting openid profile email';
+    const scope = 'api';
     const statePayload = {
       workspaceId,
-      integration: 'quick_books',
+      integration: 'salesforce',
     };
     const state = Buffer.from(JSON.stringify(statePayload)).toString('base64');
-
-    const url = `https://appcenter.intuit.com/connect/oauth2?client_id=${this.clientId}&redirect_uri=${this.redirectUri}&response_type=code&scope=${scopes}&state=${state}`;
-    return url;
+    const authUrl = `https://login.salesforce.com/services/oauth2/authorize?response_type=code&client_id=${this.clientId}&redirect_uri=${this.redirectUri}&scope=${scope}&state=${state}`;
+    return authUrl;
   }
 
-  async quickbookCallback(code: string, state: string, realmId: string) {
+  async salesforceCallback(code: string, state: string) {
     try {
       const decoded = getEncodedState(state);
       const { workspaceId, integration } = decoded;
       const response = await this.httpService.axiosRef.post(
-        'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+        'https://login.salesforce.com/services/oauth2/token',
         new URLSearchParams({
           grant_type: 'authorization_code',
-          code,
+          client_id: this.clientId,
+          client_secret: this.clientSecret,
           redirect_uri: this.redirectUri,
+          code,
         }),
-        {
-          auth: {
-            username: this.clientId,
-            password: this.clientSecret,
-          },
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            Accept: 'application/json',
-          },
-        },
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
       );
+
       const {
         access_token,
         refresh_token,
-        expires_in,
-        // x_refresh_token_expires_in,
+        instance_url,
+        id: userIdentityUrl,
       } = response.data;
 
       await this.integrationService.saveOAuthIntegration(
@@ -72,33 +65,28 @@ export class QuickbookService {
         {
           accessToken: access_token,
           refreshToken: refresh_token,
-          expiresIn: expires_in,
-          quickbooksRealmId: realmId,
+          salesforceInstanceUrl: instance_url,
+          salesforceUserId: userIdentityUrl,
         },
       );
     } catch (error) {
       this.logger.error(error);
+      throw error;
     }
   }
 
-  async refreshQuickBooksToken(refreshToken: string) {
+  async refreshSalesforceAccessToken(refreshToken: string) {
     const response = await this.httpService.axiosRef.post(
-      'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',
+      'https://login.salesforce.com/services/oauth2/token',
       new URLSearchParams({
         grant_type: 'refresh_token',
+        client_id: this.clientId,
+        client_secret: this.clientSecret,
         refresh_token: refreshToken,
       }),
-      {
-        auth: {
-          username: this.clientId,
-          password: this.clientSecret,
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      },
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
     );
 
-    return response.data; // Contains new access/refresh tokens
+    return response.data.access_token;
   }
 }

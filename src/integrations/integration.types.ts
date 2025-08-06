@@ -1,12 +1,27 @@
 export interface IState {
-  userId: string;
+  workspaceId: string;
   integration: IntegrationType;
+  shop?: string;
+}
+
+export interface IOAuthInfo {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  tokenExpiresAt: number;
+  fbUserId: string;
+  stripeUserId: string;
+  quickbooksRealmId: string;
+  shopifyShop: string;
+  salesforceInstanceUrl: string;
+  salesforceUserId: string;
+  gaPropertyId: string;
 }
 
 export type IntegrationType =
   | 'google_analytics'
   | 'hubspot'
-  | 'quickbooks'
+  | 'quick_books'
   | 'facebook_ads'
   | 'google_ads'
   | 'salesforce'

@@ -1,20 +1,27 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
+import configuration, { validationSchema } from './config/configuration';
 import { DataboardsModule } from './databoards/databoards.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { KpiModule } from './kpi/kpi.module';
+import { RagModule } from './rag/rag.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { SupabaseService } from './supabase/supabase.service';
 import { UserModule } from './users/users.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      load: [configuration],
+      validationSchema,
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -27,6 +34,7 @@ import { UserModule } from './users/users.module';
       synchronize: process.env.NODE_ENV === 'production' ? false : true,
       // logging: process.env.NODE_ENV === 'production' ? false : true,
     }),
+    ScheduleModule.forRoot(),
     UserModule,
     AuthModule,
     SupabaseModule,
@@ -34,6 +42,9 @@ import { UserModule } from './users/users.module';
     SubscriptionsModule,
     ChatModule,
     DataboardsModule,
+    WorkspacesModule,
+    KpiModule,
+    RagModule,
   ],
   providers: [SupabaseService],
 })

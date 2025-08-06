@@ -1,4 +1,5 @@
 import { User } from 'src/users/entities/users.entity';
+import { Workspace } from 'src/workspaces/entities/workspace.entity';
 import {
   Column,
   CreateDateColumn,
@@ -40,20 +41,28 @@ export class Integration {
   @OneToMany(() => Metric, (def) => def.integration)
   metrics: Metric[];
 
+  @OneToMany(() => RawIntegrationDataEvent, (def) => def.workspace)
+  rawDataEvents: RawIntegrationDataEvent[];
+
+  @OneToMany(() => ProcessedIntegrationData, (def) => def.workspace)
+  processedMetrics: ProcessedIntegrationData[];
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
 }
-@Unique('UQ_user_integration', ['user', 'integration'])
-@Entity({ name: 'user_integrations' })
-export class UserIntegration {
+@Unique('UQ_workspace_integration', ['workspace', 'integration'])
+@Entity({ name: 'workspace_integrations' })
+export class WorkspaceIntegration {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => User, (user) => user.userIntegrations, { nullable: false })
-  user: User;
+  @ManyToOne(() => Workspace, (workspace) => workspace.integrations, {
+    nullable: false,
+  })
+  workspace: Workspace;
 
   @ManyToOne(() => Integration, { nullable: false })
   integration: Integration;
@@ -102,9 +111,63 @@ export class Metric {
   @ManyToOne(() => Integration, (integration) => integration.metrics)
   integration: Integration;
 
+  @OneToMany(() => RawIntegrationDataEvent, (def) => def.metric)
+  rawDataEvents: RawIntegrationDataEvent[];
+
+  @OneToMany(() => ProcessedIntegrationData, (def) => def.metric)
+  processedMetrics: ProcessedIntegrationData[];
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+}
+
+@Entity({ name: 'raw_data_events' })
+export class RawIntegrationDataEvent {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @ManyToOne(() => Workspace, (workspace) => workspace.rawDataEvents)
+  workspace: Workspace;
+
+  @ManyToOne(() => Integration, (integration) => integration.rawDataEvents)
+  integration: Integration;
+
+  @ManyToOne(() => Metric, (metric) => metric.rawDataEvents)
+  metric: Metric;
+
+  @Column({ type: 'jsonb' })
+  rawPayload: Record<string, any>;
+
+  @Column()
+  processedAt: Date;
+
+  @Column()
+  eventTimestamp: Date;
+}
+
+@Entity({ name: 'processed_metrics' })
+export class ProcessedIntegrationData {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @ManyToOne(() => Workspace, (workspace) => workspace.processedMetrics)
+  workspace: Workspace;
+
+  @ManyToOne(() => Integration, (integration) => integration.processedMetrics)
+  integration: Integration;
+
+  @ManyToOne(() => Metric, (metric) => metric.processedMetrics)
+  metric: Metric;
+
+  @Column({ type: 'jsonb' })
+  dimensions: Record<string, any>;
+
+  @Column()
+  processedAt: Date;
+
+  @Column()
+  eventTimestamp: Date;
 }

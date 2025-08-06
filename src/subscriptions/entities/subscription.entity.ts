@@ -1,4 +1,4 @@
-import { User } from 'src/users/entities/users.entity';
+import { Workspace } from 'src/workspaces/entities/workspace.entity';
 import {
   Column,
   CreateDateColumn,
@@ -33,9 +33,11 @@ export class Subscription {
   @Column({ type: 'timestamp', nullable: true })
   currentPeriodEnd: Date;
 
-  @OneToOne(() => User, (user) => user.subscription, { onDelete: 'CASCADE' })
+  @OneToOne(() => Workspace, (workspace) => workspace.subscription, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn()
-  user: User;
+  workspace: Workspace;
 
   @CreateDateColumn()
   createdAt: Date;
