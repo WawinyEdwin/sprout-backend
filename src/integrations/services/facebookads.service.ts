@@ -35,7 +35,6 @@ export class FacebookAdsService {
       'cpm',
       'ctr',
       'frequency',
-      'video_views',
       'actions', // For conversions, engagement, leads
       'action_values', // For ROAS
     ];
@@ -89,7 +88,7 @@ export class FacebookAdsService {
       );
     } catch (error) {
       this.logger.error(
-        `Error in FBCallback for workspace ${workspaceId}:`,
+        `Error in FB Callback for workspace ${workspaceId}:`,
         error.stack || error,
       );
       throw new InternalServerErrorException(

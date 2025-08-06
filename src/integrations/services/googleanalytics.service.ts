@@ -179,7 +179,8 @@ export class GoogleAnalyticsService {
       workspaceIntegrationId,
       authData,
     );
-    await this.getPageViewsAndUsers(
+
+    return await this.getPageViewsAndUsers(
       updatedAuthData.accessToken,
       updatedAuthData.refreshToken,
       propertyId,
@@ -231,30 +232,54 @@ export class GoogleAnalyticsService {
           },
         ],
         dimensions: [
-          {
-            name: 'date',
-          },
+          { name: 'date' },
+          { name: 'sessionSource' },
+          { name: 'sessionMedium' },
         ],
         metrics: [
-          {
-            name: 'activeUsers',
-          },
-          {
-            name: 'totalUsers',
-          },
-          {
-            name: 'screenPageViews',
-          },
+          { name: 'totalUsers' },
+          { name: 'newUsers' },
+          { name: 'sessions' },
+          { name: 'averageSessionDuration' },
+          { name: 'bounceRate' },
+          { name: 'engagementRate' },
+          { name: 'screenPageViews' },
+          { name: 'eventCount' },
         ],
       });
 
       const reportData =
-        response.rows?.map((row) => ({
-          date: row.dimensionValues?.[0]?.value,
-          activeUsers: row.metricValues?.[0]?.value,
-          totalUsers: row.metricValues?.[1]?.value,
-          pageViews: row.metricValues?.[2]?.value,
-        })) ?? [];
+        response.rows?.map((row) => {
+          const metricValues = row.metricValues || [];
+
+          const totalUsers = parseFloat(metricValues[0]?.value || '0');
+          const newUsers = parseFloat(metricValues[1]?.value || '0');
+          const sessions = parseFloat(metricValues[2]?.value || '0');
+          const averageSessionDuration = parseFloat(
+            metricValues[3]?.value || '0',
+          );
+          const bounceRate = parseFloat(metricValues[4]?.value || '0');
+          const engagementRate = parseFloat(metricValues[5]?.value || '0');
+          const pageViews = parseFloat(metricValues[6]?.value || '0');
+          const eventCount = parseFloat(metricValues[9]?.value || '0');
+
+          return {
+            date: row.dimensionValues?.[0]?.value,
+            trafficSource: row.dimensionValues?.[1]?.value,
+            trafficMedium: row.dimensionValues?.[2]?.value,
+
+            // Metrics
+            users: totalUsers,
+            newUsers,
+            sessions,
+            averageSessionDuration,
+            bounceRate,
+            engagementRate,
+            pageViews,
+            pagesPerSession: sessions > 0 ? pageViews / sessions : 0, // Calculated metric
+            eventCount,
+          };
+        }) ?? [];
 
       return reportData;
     } catch (error) {
@@ -333,20 +358,20 @@ export class GoogleAnalyticsService {
       );
 
       this.logger.log(
-        `Successfully saved OAuth integration for user ${workspaceId}`,
+        `Successfully saved GA OAuth integration for user ${workspaceId}`,
       );
     } catch (error) {
       this.logger.error(
-        `Error in googleCallback for workspace ${workspaceId}:`,
+        `Error in googleAnalyticsCallback for workspace ${workspaceId}:`,
         error.stack || error,
       );
       throw new InternalServerErrorException(
-        'Failed to process Google OAuth callback',
+        'Failed to process Google Analytics OAuth callback',
       );
     }
   }
 
-  private async refreshTokenIfNeeded(
+  async refreshTokenIfNeeded(
     workspaceId: string,
     workspaceIntegrationId: string,
     authData: IOAuthInfo,
