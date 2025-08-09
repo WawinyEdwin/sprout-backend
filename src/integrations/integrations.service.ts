@@ -166,9 +166,10 @@ export class IntegrationsService {
   async workspaceIntegrations(
     workspaceId: string,
   ): Promise<WorkspaceIntegration[]> {
+    console.log("id", workspaceId)
     return await this.workspaceIntegrationRepo.find({
       where: {
-        workspace: { id: workspaceId },
+        workspace: { id: workspaceId ?? '' },
         connected: true,
       },
       relations: ['integration', 'integration.metrics'],

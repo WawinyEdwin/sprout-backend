@@ -8,11 +8,13 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Response } from 'express';
+import { RequestWithUser } from 'src/auth/auth.types';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration.dto';
 import { FacebookAdsService } from './facebook-ads/facebookads.service';
@@ -54,7 +56,7 @@ export class IntegrationsController {
     this.oauthErrorUri = `${this.frontendUrl}/dashboard/sources?connect=error`;
   }
 
-  @Get()
+  @Get("")
   @UseGuards(AuthGuard)
   findAll() {
     return this.integrationsService.findAll();
@@ -115,13 +117,13 @@ export class IntegrationsController {
     return this.integrationsService.createIntegrationRequest(payload);
   }
 
-  @Get('user')
+  @Get('workspaces')
   @UseGuards(AuthGuard)
   async workspaceIntegrations(@Query('workspaceId') workspaceId: string) {
     return this.integrationsService.workspaceIntegrations(workspaceId);
   }
 
-  @Patch('user/:integrationId')
+  @Patch('workspaces/:integrationId')
   @UseGuards(AuthGuard)
   async updateWorkspaceIntegration(
     @Param('integrationId') integrationId: string,
