@@ -35,3 +35,9 @@ export interface IDataSync {
   propertyId?: string;
   workspaceIntegration: WorkspaceIntegration;
 }
+
+export interface ICustomIntegration {
+  name: string;
+  description: string;
+  workspaceId: string;
+}

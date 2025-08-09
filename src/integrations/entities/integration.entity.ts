@@ -190,6 +190,12 @@ export class IntegrationRequest {
   })
   workspace: Workspace;
 
+  @Column()
+  name: string;
+
+  @Column({ type: 'text' })
+  description: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

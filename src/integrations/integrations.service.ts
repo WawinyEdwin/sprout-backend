@@ -4,10 +4,15 @@ import { DeepPartial, Repository } from 'typeorm';
 import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration.dto';
 import {
   Integration,
+  IntegrationRequest,
   RawIntegrationDataEvent,
   WorkspaceIntegration,
 } from './entities/integration.entity';
-import { IntegrationType, IOAuthInfo } from './integration.types';
+import {
+  ICustomIntegration,
+  IntegrationType,
+  IOAuthInfo,
+} from './integration.types';
 
 @Injectable()
 export class IntegrationsService {
@@ -16,11 +21,28 @@ export class IntegrationsService {
   constructor(
     @InjectRepository(Integration)
     private integrationRepo: Repository<Integration>,
+    @InjectRepository(IntegrationRequest)
+    private integrationRequestRepo: Repository<IntegrationRequest>,
     @InjectRepository(WorkspaceIntegration)
     private workspaceIntegrationRepo: Repository<WorkspaceIntegration>,
     @InjectRepository(RawIntegrationDataEvent)
     private rawEventRepo: Repository<RawIntegrationDataEvent>,
   ) {}
+
+  async createIntegrationRequest({
+    name,
+    description,
+    workspaceId,
+  }: ICustomIntegration) {
+    const request = this.integrationRequestRepo.create({
+      workspace: {
+        id: workspaceId,
+      },
+      name,
+      description,
+    });
+    return await this.integrationRequestRepo.save(request);
+  }
 
   async findOne(integrationId: string): Promise<Integration> {
     const integration = await this.integrationRepo.findOne({

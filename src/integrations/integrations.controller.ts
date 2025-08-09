@@ -19,7 +19,7 @@ import { FacebookAdsService } from './facebook-ads/facebookads.service';
 import { GoogleAnalyticsService } from './ga/googleanalytics.service';
 import { GoogleAdsService } from './google-ads/googleads.service';
 import { HubspotService } from './hubspot/hubspot.service';
-import { IOAuthInfo } from './integration.types';
+import { ICustomIntegration, IOAuthInfo } from './integration.types';
 import { IntegrationsService } from './integrations.service';
 import { MailchimpService } from './mailchimp/mailchimp.service';
 import { QuickbookService } from './quickbooks/quickbooks.service';
@@ -60,7 +60,7 @@ export class IntegrationsController {
     return this.integrationsService.findAll();
   }
 
-  @Get('sync')
+  @Post('sync')
   @UseGuards(AuthGuard)
   async syncIntegration(
     @Body()
@@ -105,6 +105,12 @@ export class IntegrationsController {
     }
 
     return await handler.syncData(payload);
+  }
+
+  @Post('custom')
+  @UseGuards(AuthGuard)
+  async customIntegration(@Body() payload: ICustomIntegration) {
+    return this.integrationsService.createIntegrationRequest(payload);
   }
 
   @Get('user')
