@@ -5,28 +5,59 @@ import {
   User,
   WeakPassword,
 } from '@supabase/supabase-js';
-import { SupabaseService } from 'src/supabase/supabase.service';
+import { UsersService } from '../users/users.service';
+import { SupabaseService } from '../supabase/supabase.service';
 
 @Injectable()
 export class AuthService {
   private supabase: SupabaseClient;
+  private supabaseAdmin: SupabaseClient;
 
-  constructor(private readonly supabaseService: SupabaseService) {
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly userService: UsersService,
+  ) {
     this.supabase = this.supabaseService.createSupabaseClient();
+    this.supabaseAdmin = this.supabaseService.createSupabaseAdminClient();
+  }
+
+  async resetPassword(password: string, email: string) {
+    const user = await this.userService.findOneByEmail(email);
+    const userId = user.id;
+    const { error } = await this.supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { password },
+    );
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return { message: 'Password reset successful!' };
+  }
+
+  async forgotPassword(email: string, redirectTo: string) {
+    const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+
+    if (error) {
+      throw new BadRequestException(error.message);
+    }
+
+    return { message: 'Password updated successfully' };
   }
 
   async resendEmailConfirmation(email: string) {
     const { error } = await this.supabase.auth.resend({
       type: 'signup',
       email: email,
-      // options: {
-      //   emailRedirectTo: 'https://example.com/welcome',
-      // },
     });
     if (error) {
       throw new BadRequestException(error.message);
     }
   }
+
   async loginWithEmailAndPassword(
     email: string,
     password: string,
@@ -62,8 +93,7 @@ export class AuthService {
         data: {
           ...userMetadata,
         },
-        emailRedirectTo:
-          process.env.EMAIL_REDIRECT,
+        emailRedirectTo: process.env.EMAIL_REDIRECT,
       },
     });
 

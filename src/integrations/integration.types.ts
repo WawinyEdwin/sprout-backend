@@ -1,3 +1,5 @@
+import { WorkspaceIntegration } from './entities/integration.entity';
+
 export interface IState {
   workspaceId: string;
   integration: IntegrationType;
@@ -28,3 +30,8 @@ export type IntegrationType =
   | 'stripe'
   | 'zendesk'
   | 'mailchimp';
+
+export interface IDataSync {
+  propertyId?: string;
+  workspaceIntegration: WorkspaceIntegration;
+}

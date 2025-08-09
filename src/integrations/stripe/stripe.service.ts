@@ -57,4 +57,6 @@ export class StripeService {
       throw error;
     }
   }
+
+  async syncData() {}
 }

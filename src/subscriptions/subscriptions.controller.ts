@@ -1,34 +1,37 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
+import { SubscriptionPlanEnum } from './subscription.enum';
 import { SubscriptionsService } from './subscriptions.service';
-import { CreateSubscriptionDto } from './dto/create-subscription.dto';
-import { UpdateSubscriptionDto } from './dto/update-subscription.dto';
 
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(private readonly subscriptionsService: SubscriptionsService) {}
 
-  @Post()
-  create(@Body() createSubscriptionDto: CreateSubscriptionDto) {
-    return this.subscriptionsService.create(createSubscriptionDto);
+  @Post('me')
+  async getWorkspaceSubscription(@Body() body: { workspaceId: string }) {
+    return this.subscriptionsService.getWorkspaceSubscription(body.workspaceId);
   }
 
-  @Get()
-  findAll() {
-    return this.subscriptionsService.findAll();
+  @Post('setup-payment')
+  async setupPayment(@Body() body: { workspaceId: string; plan: string }) {
+    return this.subscriptionsService.createSetupSession(
+      body.workspaceId,
+      body.plan,
+    );
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.subscriptionsService.findOne(+id);
+  @Post('upgrade')
+  async upgrade(
+    @Body() body: { workspaceId: string; plan: SubscriptionPlanEnum },
+  ) {
+    return this.subscriptionsService.upgradeToPaidPlan(
+      body.workspaceId,
+      body.plan,
+    );
   }
 
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateSubscriptionDto: UpdateSubscriptionDto) {
-    return this.subscriptionsService.update(+id, updateSubscriptionDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.subscriptionsService.remove(+id);
+  @Post('webhook/stripe')
+  async handleStripeWebhook(@Req() req: Request, @Res() res: Response) {
+    const sig = req.headers['stripe-signature'];
+    return await this.subscriptionsService.handleStripeWebhook(sig, req.body);
   }
 }

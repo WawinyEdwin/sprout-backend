@@ -5,17 +5,16 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { ChatModule } from './chat/chat.module';
 import configuration, { validationSchema } from './config/configuration';
+import { DataPipelinesModule } from './data-pipelines/data-pipelines.module';
 import { DataboardsModule } from './databoards/databoards.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { KpiModule } from './kpi/kpi.module';
-import { RagModule } from './rag/rag.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { SupabaseModule } from './supabase/supabase.module';
 import { SupabaseService } from './supabase/supabase.service';
 import { UserModule } from './users/users.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
-import { SchedulerModule } from './scheduler/scheduler.module';
-import { DataPipelinesModule } from './data-pipelines/data-pipelines.module';
 
 @Module({
   imports: [
@@ -46,7 +45,6 @@ import { DataPipelinesModule } from './data-pipelines/data-pipelines.module';
     DataboardsModule,
     WorkspacesModule,
     KpiModule,
-    RagModule,
     SchedulerModule,
     DataPipelinesModule,
   ],

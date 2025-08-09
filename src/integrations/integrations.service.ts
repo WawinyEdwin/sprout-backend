@@ -4,6 +4,7 @@ import { DeepPartial, Repository } from 'typeorm';
 import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration.dto';
 import {
   Integration,
+  RawIntegrationDataEvent,
   WorkspaceIntegration,
 } from './entities/integration.entity';
 import { IntegrationType, IOAuthInfo } from './integration.types';
@@ -11,12 +12,58 @@ import { IntegrationType, IOAuthInfo } from './integration.types';
 @Injectable()
 export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
+
   constructor(
     @InjectRepository(Integration)
     private integrationRepo: Repository<Integration>,
     @InjectRepository(WorkspaceIntegration)
     private workspaceIntegrationRepo: Repository<WorkspaceIntegration>,
+    @InjectRepository(RawIntegrationDataEvent)
+    private rawEventRepo: Repository<RawIntegrationDataEvent>,
   ) {}
+
+  async findOne(integrationId: string): Promise<Integration> {
+    const integration = await this.integrationRepo.findOne({
+      where: {
+        id: integrationId,
+      },
+    });
+
+    if (!integration) {
+      throw new NotFoundException('Integration not found');
+    }
+
+    return integration;
+  }
+
+  async saveRawIntegrationData(
+    workspaceId: string,
+    workspaceIntegrationId: string,
+    payload: Record<string, any>,
+    source: IntegrationType,
+  ) {
+    return await this.rawEventRepo.save({
+      eventTimestamp: Date.now().toString(),
+      integration: {
+        id: workspaceIntegrationId,
+      },
+      processedAt: Date.now().toString(),
+      source: source,
+      rawPayload: payload,
+      workspace: {
+        id: workspaceId,
+      },
+    });
+  }
+
+  async findWorkspaceRawEventData(workspaceId: string) {
+    return await this.rawEventRepo.find({
+      where: { workspace: { id: workspaceId } },
+      order: { eventTimestamp: 'DESC' },
+      take: 50,
+      relations: ['integration.integration'],
+    });
+  }
 
   async disconnectIntegration(workspaceIntegrationId: string) {
     return await this.workspaceIntegrationRepo.update(workspaceIntegrationId, {

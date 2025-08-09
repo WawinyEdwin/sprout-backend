@@ -1,5 +1,4 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { AuthService } from './auth.service';
@@ -23,8 +22,24 @@ export class AuthController {
     return await this.authService.resendEmailConfirmation(payload.email!);
   }
 
+  @Post('forgot-password')
+  async forgotPassword(@Body() payload: { email: string; redirectTo: string }) {
+    return await this.authService.forgotPassword(
+      payload.email,
+      payload.redirectTo,
+    );
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() payload: { password: string; email: string }) {
+    return await this.authService.resetPassword(
+      payload.password,
+      payload.email,
+    );
+  }
+
   @Post('login')
-  async login(@Body() payload: AuthDto, res: Response) {
+  async login(@Body() payload: AuthDto) {
     const loginResponse = await this.authService.loginWithEmailAndPassword(
       payload.email,
       payload.password,

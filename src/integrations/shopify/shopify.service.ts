@@ -77,4 +77,6 @@ export class ShopifyService {
 
     return generatedHmac === hmac;
   }
+
+  async syncData() {}
 }

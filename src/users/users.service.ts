@@ -15,37 +15,18 @@ export class UsersService {
     return this.usersRepository.find();
   }
 
-  findOne(id: string): Promise<any> {
-    const user = this.usersRepository.findOne({
-      where: { id },
-      relations: [
-        'workspace_members',
-        'workspace_members.workspace',
-        'workspace_members.workspace.subscription',
-        'workspace_members.workspace.integrations',
-      ],
+  async findOneByEmail(email: string): Promise<User> {
+    const user = await this.usersRepository.findOne({
+      where: {
+        email,
+      },
     });
 
     if (!user) {
-      throw new NotFoundException('User info not found');
+      throw new NotFoundException('User not found');
     }
 
-    // Extract workspace (assuming single workspace)
-    // const workspace = user.workspace_members?.[0]?.workspace;
-
-    // Merge into response
-    return {
-      ...user,
-    //   workspace: workspace
-    //     ? {
-    //         id: workspace.id,
-    //         name: workspace.name,
-    //         industry: workspace.industry,
-    //         createdAt: workspace.createdAt,
-    //         updatedAt: workspace.updatedAt,
-    //       }
-    //     : null,
-    }
+    return user;
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {

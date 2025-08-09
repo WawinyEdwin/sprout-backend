@@ -2,7 +2,11 @@ import * as Joi from 'joi';
 
 export const validationSchema = Joi.object({
   NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
-  EMAIL_REDIRECT: Joi.string().uri().default('http://localhost:3000/auth/signin?redirect=/dashboard/onboarding'),
+  EMAIL_REDIRECT: Joi.string()
+    .uri()
+    .default(
+      'http://localhost:3000/auth/signin?redirect=/dashboard/onboarding',
+    ),
   PORT: Joi.number().default(9000),
   DB_HOST: Joi.string().hostname().required(),
   DB_PORT: Joi.number().port().default(5432),
@@ -31,6 +35,7 @@ export const validationSchema = Joi.object({
   SALESFORCE_CONSUMER_KEY: Joi.string().required(),
   SALESFORCE_CONSUMER_SECRET: Joi.string().required(),
   SALESFORCE_REDIRECT_URI: Joi.string().uri().required(),
+  OPENAI_API_KEY: Joi.string().required()
 });
 
 export default () => ({

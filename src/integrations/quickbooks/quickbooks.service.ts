@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Mutex } from 'async-mutex';
-import { IOAuthInfo } from '../integration.types';
+import { IDataSync, IOAuthInfo } from '../integration.types';
 import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
 import {
@@ -38,28 +38,16 @@ export class QuickbookService {
     )!;
   }
 
-  async getQuickbooksMetrics(
-    workspaceId: string,
-    workspaceIntegrationId: string,
-  ): Promise<any> {
+  async syncData({ workspaceIntegration }: IDataSync) {
     try {
-      const integration =
-        await this.integrationService.findWorkspaceIntegrationByWorkspaceId(
-          workspaceId,
-          workspaceIntegrationId,
-        );
+      this.logger.log(
+        `Fetching Quickbooks  data for user ${workspaceIntegration.workspace.id}`,
+      );
 
-      const rawAuthData = integration.authData;
-      if (!rawAuthData) {
-        throw new BadRequestException(
-          'Missing auth information for this integration',
-        );
-      }
-
-      const authData = rawAuthData as IOAuthInfo;
+      const authData = workspaceIntegration.authData as IOAuthInfo;
       const updatedAuthData = await this.refreshTokenIfNeeded(
-        workspaceId,
-        workspaceIntegrationId,
+        workspaceIntegration.workspace.id,
+        workspaceIntegration.id,
         authData,
       );
 
@@ -75,10 +63,6 @@ export class QuickbookService {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json',
       };
-
-      this.logger.log(
-        `Fetching quickbooks data for user ${workspaceId}, realmId: ${realmId}`,
-      );
 
       const baseUrl = `https://sandbox-quickbooks.api.intuit.com/v3/company/${realmId}`;
       const [
@@ -148,13 +132,19 @@ export class QuickbookService {
         // salesByProductReport: salesByProductReport.data,
       };
 
+      await this.integrationService.saveRawIntegrationData(
+        workspaceIntegration.workspace.id,
+        workspaceIntegration.id,
+        processedMetrics,
+        workspaceIntegration.integration.key,
+      );
+
       await this.integrationService.updateWorkspaceIntegration(
-        workspaceIntegrationId,
+        workspaceIntegration.id,
         {
           lastSynced: new Date().toLocaleString(),
         },
       );
-
       return processedMetrics;
     } catch (error) {
       this.logger.error(

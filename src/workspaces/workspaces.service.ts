@@ -1,7 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CreateWorkspaceDto } from './dto/create-workspace.dto';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 import { Workspace, WorkspaceMember } from './entities/workspace.entity';
 
@@ -14,27 +13,34 @@ export class WorkspacesService {
     private workspaceMemberRepo: Repository<WorkspaceMember>,
   ) {}
 
-  create(createWorkspaceDto: CreateWorkspaceDto) {
-    return 'This action adds a new workspace';
-  }
+  async findWorkspaceById(workspaceId: string): Promise<Workspace> {
+    const workspace = await this.workspaceRepo.findOne({
+      where: { id: workspaceId },
+      relations: ['subscription'],
+    });
 
-  findAll() {
-    return `This action returns all workspaces`;
+    if (!workspace) throw new NotFoundException('Workspace not found');
+
+    return workspace;
   }
 
   async findWorkpaceByUserId(userId: string) {
-    return await this.workspaceMemberRepo.findOne({
+    const member = await this.workspaceMemberRepo.findOne({
       where: {
         userId,
       },
+      relations: ['workspace', 'workspace.subscription'],
     });
+    if (!member) return null;
+
+    return {
+      ...member,
+      workspace: {
+        ...member.workspace,
+        subscription: undefined,
+      },
+      subscription: member.workspace.subscription,
+    };
   }
 
-  update(id: number, updateWorkspaceDto: UpdateWorkspaceDto) {
-    return `This action updates a #${id} workspace`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} workspace`;
-  }
 }

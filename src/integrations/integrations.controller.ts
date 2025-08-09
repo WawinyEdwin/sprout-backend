@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -17,12 +18,15 @@ import { UpdateWorkspaceIntegrationDto } from './dto/update-workspaceintegration
 import { FacebookAdsService } from './facebook-ads/facebookads.service';
 import { GoogleAnalyticsService } from './ga/googleanalytics.service';
 import { GoogleAdsService } from './google-ads/googleads.service';
+import { HubspotService } from './hubspot/hubspot.service';
+import { IOAuthInfo } from './integration.types';
 import { IntegrationsService } from './integrations.service';
 import { MailchimpService } from './mailchimp/mailchimp.service';
 import { QuickbookService } from './quickbooks/quickbooks.service';
 import { SalesforceService } from './salesforce/salesforce.service';
 import { ShopifyService } from './shopify/shopify.service';
 import { StripeService } from './stripe/stripe.service';
+import { ZendeskService } from './zendesk/zendesk.service';
 
 @Controller('integrations')
 export class IntegrationsController {
@@ -42,6 +46,8 @@ export class IntegrationsController {
     private readonly salesforceService: SalesforceService,
     private readonly configService: ConfigService,
     private readonly mailchimpService: MailchimpService,
+    private readonly hubspotService: HubspotService,
+    private readonly zendeskService: ZendeskService,
   ) {
     this.frontendUrl = this.configService.get<string>('FRONTEND_URL')!;
     this.oauthSuccessUri = `${this.frontendUrl}/dashboard/sources?connect=success`;
@@ -52,6 +58,53 @@ export class IntegrationsController {
   @UseGuards(AuthGuard)
   findAll() {
     return this.integrationsService.findAll();
+  }
+
+  @Get('sync')
+  @UseGuards(AuthGuard)
+  async syncIntegration(
+    @Body()
+    payload: {
+      workspaceId: string;
+      workspaceIntegrationId: string;
+      propertyId?: string;
+    },
+  ) {
+    const integration =
+      await this.integrationsService.findWorkspaceIntegrationByWorkspaceId(
+        payload.workspaceId,
+        payload.workspaceIntegrationId,
+      );
+
+    const rawAuthData = integration.authData;
+    if (!rawAuthData) {
+      throw new BadRequestException(
+        'Missing auth information for this integration',
+      );
+    }
+
+    const authData = rawAuthData as IOAuthInfo;
+
+    if (!authData.accessToken) {
+      throw new BadRequestException(
+        'No access token found for this integration',
+      );
+    }
+
+    const serviceMap = {
+      google_analytics: this.googleAnalyticsService,
+      quick_books: this.quickbookService,
+      facebook_ads: this.facebookAdsService,
+      salesforce: this.salesforceService,
+      google_ads: this.googleAdsService,
+    };
+
+    const handler = serviceMap[integration.integration.key];
+    if (!handler || !handler.sync) {
+      throw new BadRequestException('Unsupported integration for sync');
+    }
+
+    return await handler.syncData(payload);
   }
 
   @Get('user')
@@ -117,19 +170,6 @@ export class IntegrationsController {
     );
   }
 
-  @Post('ga/sync/:propertyId')
-  @UseGuards(AuthGuard)
-  async syncData(
-    @Param('propertyId') propertyId: string,
-    @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
-  ) {
-    return await this.googleAnalyticsService.getGaData(
-      propertyId,
-      payload.workspaceId,
-      payload.workspaceIntegrationId,
-    );
-  }
-
   @Get('google-ads/connect')
   @UseGuards(AuthGuard)
   generateAdsURL(@Query('workspaceId') workspaceId: string) {
@@ -169,17 +209,6 @@ export class IntegrationsController {
       this.logger.error('FB OAuth callback failed:', error.stack || error);
       res.redirect(this.oauthErrorUri);
     }
-  }
-
-  @Post('facebook-ads/sync')
-  @UseGuards(AuthGuard)
-  async getFBAdsData(
-    @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
-  ) {
-    return this.facebookAdsService.getAdAccountMetrics(
-      payload.workspaceId,
-      payload.workspaceIntegrationId,
-    );
   }
 
   @Get('stripe/connect')
@@ -227,17 +256,6 @@ export class IntegrationsController {
     }
   }
 
-  @Post('quickbooks/sync/')
-  @UseGuards(AuthGuard)
-  async syncQuickBooksData(
-    @Body() payload: { workspaceId: string; workspaceIntegrationId: string },
-  ) {
-    return await this.quickbookService.getQuickbooksMetrics(
-      payload.workspaceId,
-      payload.workspaceIntegrationId,
-    );
-  }
-
   @Get('shopify/connect')
   @UseGuards(AuthGuard)
   generateShopifyURL(
@@ -257,6 +275,7 @@ export class IntegrationsController {
       await this.shopifyService.shopifyCallback(code, state);
       res.redirect(this.oauthSuccessUri);
     } catch (error) {
+      this.logger.error('Shopify OAuth callback failed:', error.stack || error);
       res.redirect(this.oauthErrorUri);
     }
   }
@@ -277,6 +296,10 @@ export class IntegrationsController {
       await this.salesforceService.salesforceCallback(code, state);
       res.redirect(this.oauthSuccessUri);
     } catch (error) {
+      this.logger.error(
+        'Salesforce OAuth callback failed:',
+        error.stack || error,
+      );
       res.redirect(this.oauthErrorUri);
     }
   }
@@ -297,6 +320,52 @@ export class IntegrationsController {
       await this.mailchimpService.mailchimpCallback(code, state);
       res.redirect(this.oauthSuccessUri);
     } catch (error) {
+      this.logger.error(
+        'Mailchimp OAuth callback failed:',
+        error.stack || error,
+      );
+      res.redirect(this.oauthErrorUri);
+    }
+  }
+
+  @Get('hubspot/connect')
+  @UseGuards(AuthGuard)
+  generatehubspotURL(@Query('workspaceId') workspaceId: string) {
+    return this.hubspotService.generateAuthUrl(workspaceId);
+  }
+
+  @Get('hubspot/authorize/hubspot/callback')
+  async hubspotCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.hubspotService.hubspotCallback(code, state);
+      res.redirect(this.oauthSuccessUri);
+    } catch (error) {
+      this.logger.error('Hubspot OAuth callback failed:', error.stack || error);
+      res.redirect(this.oauthErrorUri);
+    }
+  }
+
+  @Get('zendesk/connect')
+  @UseGuards(AuthGuard)
+  generatezendeskURL(@Query('workspaceId') workspaceId: string) {
+    return this.zendeskService.generateAuthUrl(workspaceId);
+  }
+
+  @Get('zendesk/authorize/zendesk/callback')
+  async zendeskCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.zendeskService.zendeskCallback(code, state);
+      res.redirect(this.oauthSuccessUri);
+    } catch (error) {
+      this.logger.error('Hubspot OAuth callback failed:', error.stack || error);
       res.redirect(this.oauthErrorUri);
     }
   }

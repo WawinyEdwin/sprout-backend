@@ -13,12 +13,6 @@ export class UsersController {
     return this.userService.findAll();
   }
 
-  @Get(':id')
-  @UseGuards(AuthGuard)
-  findOne(@Param('id') id: string) {
-    return this.userService.findOne(id);
-  }
-
   @Patch(':id')
   @UseGuards(AuthGuard)
   update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {

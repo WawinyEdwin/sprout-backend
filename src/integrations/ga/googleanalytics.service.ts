@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Mutex } from 'async-mutex';
 import { GoogleAuth, OAuth2Client } from 'google-auth-library';
 import { analyticsadmin_v1beta, google } from 'googleapis';
-import { IOAuthInfo } from '../integration.types';
+import { IDataSync, IOAuthInfo } from '../integration.types';
 import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
 
@@ -144,49 +144,50 @@ export class GoogleAnalyticsService {
     }
   }
 
-  async getGaData(
-    propertyId: string,
-    workspaceId: string,
-    workspaceIntegrationId: string,
-  ) {
-    const integration =
-      await this.integrationService.findWorkspaceIntegrationByWorkspaceId(
-        workspaceId,
-        workspaceIntegrationId,
-      );
-
-    const rawAuthData = integration.authData;
-    if (!rawAuthData) {
+  async syncData({ propertyId, workspaceIntegration }: IDataSync) {
+    if (!propertyId) {
       throw new BadRequestException(
-        'Missing auth information for this integration',
-      );
-    }
-
-    const authData = rawAuthData as IOAuthInfo;
-
-    if (!authData.accessToken) {
-      throw new BadRequestException(
-        'No access token found for this integration',
+        'PropertyId must be provided for this data source!',
       );
     }
 
     this.logger.log(
-      `Fetching GA data for user ${workspaceId}, property ${propertyId}`,
+      `Fetching GA data for user ${workspaceIntegration.workspace.id}, property ${propertyId}`,
     );
 
+    const authData = workspaceIntegration.authData as IOAuthInfo;
     const updatedAuthData = await this.refreshTokenIfNeeded(
-      workspaceId,
-      workspaceIntegrationId,
+      workspaceIntegration.workspace.id,
+      workspaceIntegration.id,
       authData,
     );
 
-    return await this.getPageViewsAndUsers(
+    const reportData = await this.getPageViewsAndUsers(
       updatedAuthData.accessToken,
       updatedAuthData.refreshToken,
       propertyId,
       '30daysAgo',
       'today',
     );
+
+    await Promise.all(
+      reportData.map((entry) =>
+        this.integrationService.saveRawIntegrationData(
+          workspaceIntegration.workspace.id,
+          workspaceIntegration.id,
+          entry,
+          workspaceIntegration.integration.key,
+        ),
+      ),
+    );
+
+    await this.integrationService.updateWorkspaceIntegration(
+      workspaceIntegration.id,
+      {
+        lastSynced: new Date().toLocaleString(),
+      },
+    );
+    return reportData;
   }
 
   private getAnalyticsClientForUser(accessToken: string, refreshToken: string) {

@@ -1,5 +1,9 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
@@ -37,9 +41,12 @@ export class SalesforceService {
   }
 
   async salesforceCallback(code: string, state: string) {
+    const decoded = getEncodedState(state);
+    const { workspaceId, integration } = decoded;
     try {
-      const decoded = getEncodedState(state);
-      const { workspaceId, integration } = decoded;
+      this.logger.log(
+        `Attempting to exchange salesforce OAuth code for tokens for workspace ${workspaceId}`,
+      );
       const response = await this.httpService.axiosRef.post(
         'https://login.salesforce.com/services/oauth2/token',
         new URLSearchParams({
@@ -69,9 +76,18 @@ export class SalesforceService {
           salesforceUserId: userIdentityUrl,
         },
       );
+
+      this.logger.log(
+        `Successfully saved salesforce OAuth integration for user ${workspaceId}`,
+      );
     } catch (error) {
-      this.logger.error(error);
-      throw error;
+      this.logger.error(
+        `Error in salesforce callback for workspace ${workspaceId}:`,
+        error.stack || error,
+      );
+      throw new InternalServerErrorException(
+        'Failed to process salesforce OAuth callback',
+      );
     }
   }
 
@@ -89,4 +105,6 @@ export class SalesforceService {
 
     return response.data.access_token;
   }
+
+  async syncData() {}
 }

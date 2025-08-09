@@ -1,10 +1,4 @@
 import {
-  ProcessedIntegrationData,
-  RawIntegrationDataEvent,
-  WorkspaceIntegration,
-} from 'src/integrations/entities/integration.entity';
-import { Subscription } from 'src/subscriptions/entities/subscription.entity';
-import {
   Column,
   CreateDateColumn,
   Entity,
@@ -15,6 +9,13 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import {
+  IntegrationRequest,
+  ProcessedIntegrationData,
+  RawIntegrationDataEvent,
+  WorkspaceIntegration,
+} from '../../integrations/entities/integration.entity';
+import { Subscription } from '../../subscriptions/entities/subscription.entity';
 import { WorkspaceRoleEnum } from '../workspace.enum';
 
 @Entity({ name: 'workspaces' })
@@ -42,6 +43,9 @@ export class Workspace {
 
   @OneToMany(() => WorkspaceIntegration, (ui) => ui.workspace)
   integrations: WorkspaceIntegration[];
+
+  @OneToMany(() => IntegrationRequest, (ui) => ui.workspace)
+  integration_requests: IntegrationRequest[];
 
   @CreateDateColumn()
   createdAt: Date;

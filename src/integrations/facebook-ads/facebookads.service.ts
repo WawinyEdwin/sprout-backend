@@ -1,12 +1,11 @@
 import { HttpService } from '@nestjs/axios';
 import {
-  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { IOAuthInfo } from '../integration.types';
+import { IDataSync, IOAuthInfo } from '../integration.types';
 import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
 
@@ -134,42 +133,18 @@ export class FacebookAdsService {
     }
   }
 
-  async getAdAccountMetrics(
-    workspaceId: string,
-    workspaceIntegrationId: string,
-  ) {
+  async syncData({ workspaceIntegration }: IDataSync) {
     try {
-      // 1. Retrieve the access token from your database
-      const integration =
-        await this.integrationService.findWorkspaceIntegrationByWorkspaceId(
-          workspaceId,
-          workspaceIntegrationId,
-        );
+      this.logger.log(
+        `Fetching FB Ads data for workspace ${workspaceIntegration.workspace.id}}`,
+      );
 
-      const rawAuthData = integration.authData;
-      if (!rawAuthData) {
-        throw new BadRequestException(
-          'Missing auth information for this integration',
-        );
-      }
-
-      const authData = rawAuthData as IOAuthInfo;
-
-      if (!authData.accessToken) {
-        throw new BadRequestException(
-          'No access token found for this integration',
-        );
-      }
-
-      this.logger.log(`Fetching FB Ads data for workspace ${workspaceId}`);
-
-      // 2. Get all ad accounts for the user
+      const authData = workspaceIntegration.authData as IOAuthInfo;
       const adAccountIds = await this.getAdAccountIds(authData.accessToken);
       if (adAccountIds.length === 0) {
         return { message: 'No ad accounts found for this user.' };
       }
 
-      // 3. Fetch insights for each ad account concurrently
       const insightsPromises = adAccountIds.map((adAccountId) =>
         this.httpService.axiosRef.get(
           `https://graph.facebook.com/v19.0/${adAccountId}/insights`,
@@ -189,7 +164,23 @@ export class FacebookAdsService {
 
       const insightsResponses = await Promise.all(insightsPromises);
       const aggregatedMetrics = this.processInsightsData(insightsResponses);
+      await Promise.all(
+        aggregatedMetrics.map((entry) =>
+          this.integrationService.saveRawIntegrationData(
+            workspaceIntegration.workspace.id,
+            workspaceIntegration.id,
+            entry,
+            workspaceIntegration.integration.key,
+          ),
+        ),
+      );
 
+      await this.integrationService.updateWorkspaceIntegration(
+        workspaceIntegration.id,
+        {
+          lastSynced: new Date().toLocaleString(),
+        },
+      );
       return aggregatedMetrics;
     } catch (error) {
       this.logger.error('Failed to get ad account metrics:', error);
@@ -249,16 +240,13 @@ export class FacebookAdsService {
       }
     }
 
-    // Calculate the final metrics
     const calculatedMetrics = {
       impressions: totalMetrics.impressions,
       reach: totalMetrics.reach,
       clicks: totalMetrics.clicks,
       adSpend: totalMetrics.spend,
       videoViews: totalMetrics.video_views,
-      frequency: totalMetrics.impressions / totalMetrics.reach, // Formula
-
-      // Calculated metrics
+      frequency: totalMetrics.impressions / totalMetrics.reach,
       ctr: (totalMetrics.clicks / totalMetrics.impressions) * 100,
       cpc: totalMetrics.spend / totalMetrics.clicks,
       cpm: (totalMetrics.spend / totalMetrics.impressions) * 1000,

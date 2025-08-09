@@ -1,4 +1,3 @@
-import { User } from 'src/users/entities/users.entity';
 import { Workspace } from 'src/workspaces/entities/workspace.entity';
 import {
   Column,
@@ -40,12 +39,6 @@ export class Integration {
 
   @OneToMany(() => Metric, (def) => def.integration)
   metrics: Metric[];
-
-  @OneToMany(() => RawIntegrationDataEvent, (def) => def.workspace)
-  rawDataEvents: RawIntegrationDataEvent[];
-
-  @OneToMany(() => ProcessedIntegrationData, (def) => def.workspace)
-  processedMetrics: ProcessedIntegrationData[];
 
   @CreateDateColumn()
   createdAt: Date;
@@ -90,6 +83,12 @@ export class WorkspaceIntegration {
   @Column({ type: 'jsonb', nullable: true })
   authData?: Record<string, any>; // token, refreshToken
 
+  @OneToMany(() => RawIntegrationDataEvent, (def) => def.workspace)
+  rawDataEvents: RawIntegrationDataEvent[];
+
+  @OneToMany(() => ProcessedIntegrationData, (def) => def.workspace)
+  processedMetrics: ProcessedIntegrationData[];
+
   @CreateDateColumn()
   createdAt: Date;
 
@@ -132,11 +131,17 @@ export class RawIntegrationDataEvent {
   @ManyToOne(() => Workspace, (workspace) => workspace.rawDataEvents)
   workspace: Workspace;
 
-  @ManyToOne(() => Integration, (integration) => integration.rawDataEvents)
-  integration: Integration;
+  @ManyToOne(
+    () => WorkspaceIntegration,
+    (integration) => integration.rawDataEvents,
+  )
+  integration: WorkspaceIntegration;
 
   @ManyToOne(() => Metric, (metric) => metric.rawDataEvents)
   metric: Metric;
+
+  @Column()
+  source: string;
 
   @Column({ type: 'jsonb' })
   rawPayload: Record<string, any>;
@@ -156,8 +161,11 @@ export class ProcessedIntegrationData {
   @ManyToOne(() => Workspace, (workspace) => workspace.processedMetrics)
   workspace: Workspace;
 
-  @ManyToOne(() => Integration, (integration) => integration.processedMetrics)
-  integration: Integration;
+  @ManyToOne(
+    () => WorkspaceIntegration,
+    (integration) => integration.processedMetrics,
+  )
+  integration: WorkspaceIntegration;
 
   @ManyToOne(() => Metric, (metric) => metric.processedMetrics)
   metric: Metric;
@@ -170,4 +178,21 @@ export class ProcessedIntegrationData {
 
   @Column()
   eventTimestamp: Date;
+}
+
+@Entity({ name: 'integration_request' })
+export class IntegrationRequest {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @ManyToOne(() => Workspace, (workspace) => workspace.integrations, {
+    nullable: false,
+  })
+  workspace: Workspace;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
 }
