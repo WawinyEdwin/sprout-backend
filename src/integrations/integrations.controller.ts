@@ -84,7 +84,6 @@ export class IntegrationsController {
     }
 
     const authData = rawAuthData as IOAuthInfo;
-
     if (!authData.accessToken) {
       throw new BadRequestException(
         'No access token found for this integration',
@@ -100,11 +99,14 @@ export class IntegrationsController {
     };
 
     const handler = serviceMap[integration.integration.key];
-    if (!handler || !handler.sync) {
+    if (!handler || !handler.syncData) {
       throw new BadRequestException('Unsupported integration for sync');
     }
 
-    return await handler.syncData(payload);
+    return await handler.syncData({
+      workspaceIntegration: integration,
+      propertyId: payload.propertyId,
+    });
   }
 
   @Post('custom')
@@ -217,24 +219,13 @@ export class IntegrationsController {
     }
   }
 
-  @Get('stripe/connect')
+  @Post('stripe/connect')
   @UseGuards(AuthGuard)
-  generateStripeURL(@Query('workspaceId') workspaceId: string) {
-    return this.stripeService.generateAuthUrl(workspaceId);
-  }
-
-  @Get('stripe/authorize/stripe/callback')
-  async stripeCallback(
-    @Query('code') code: string,
-    @Query('state') state: string,
-    @Res() res: Response,
+  generateStripeURL(
+    @Query('workspaceId') workspaceId: string,
+    @Body() payload: { ki: string },
   ) {
-    try {
-      await this.stripeService.stripeCallback(code, state);
-      res.redirect(this.oauthSuccessUri);
-    } catch (error) {
-      res.redirect(this.oauthErrorUri);
-    }
+    return this.stripeService.saveRestrictedKey(workspaceId, payload.ki);
   }
 
   @Get('quickbooks/connect')

@@ -113,6 +113,7 @@ export class IntegrationsService {
           id: workspaceId,
         },
       },
+      relations: ['integration', 'workspace'],
     });
 
     if (!workspaceIntegration) {

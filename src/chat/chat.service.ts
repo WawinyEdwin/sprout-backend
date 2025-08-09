@@ -32,7 +32,6 @@ export class ChatService {
     try {
       const recentData =
         await this.integrationService.findWorkspaceRawEventData(workspaceId);
-
       const contextData = recentData.map((r) => ({
         payload: r.rawPayload,
         data_source: r.integration.integration.key,

@@ -18,6 +18,7 @@ export interface IOAuthInfo {
   salesforceInstanceUrl: string;
   salesforceUserId: string;
   gaPropertyId: string;
+  stripeApiKey: string;
 }
 
 export type IntegrationType =

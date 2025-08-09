@@ -10,11 +10,7 @@ import { Mutex } from 'async-mutex';
 import { IDataSync, IOAuthInfo } from '../integration.types';
 import { getEncodedState } from '../integration.utils';
 import { IntegrationsService } from '../integrations.service';
-import {
-  calculateNetProfitMargin,
-  extractBalanceByBankAccounts,
-  findMetricValue,
-} from './quickbooks.utils';
+import { findMetricValue } from './quickbooks.utils';
 
 @Injectable()
 export class QuickbookService {
@@ -106,36 +102,10 @@ export class QuickbookService {
         balanceSheet: balanceSheet.data,
       };
 
-      const processedMetrics = {
-        netIncomeCash: findMetricValue(
-          metrics.cashFlowReport?.Rows?.Row,
-          'Net Income',
-        ),
-        totalExpensesAccrual: findMetricValue(
-          metrics.profitLossReport.Rows.Row,
-          'Total Expenses',
-        ),
-        grossProfit: findMetricValue(
-          metrics.profitLossReport.Rows.Row,
-          'Gross Profit',
-        ),
-        netProfitMarginAccrual: calculateNetProfitMargin(
-          metrics.profitLossReport,
-        ),
-        // revenueGrowth: calculateRevenueGrowth(metrics.profitLossReport),
-        // customerPaymentsByProduct: extractCustomerPaymentsByProduct(
-        //   metrics.salesByProductReport,
-        // ),
-        balanceByBankAccounts: extractBalanceByBankAccounts(
-          metrics.balanceSheet,
-        ),
-        // salesByProductReport: salesByProductReport.data,
-      };
-
       await this.integrationService.saveRawIntegrationData(
         workspaceIntegration.workspace.id,
         workspaceIntegration.id,
-        processedMetrics,
+        metrics,
         workspaceIntegration.integration.key,
       );
 
@@ -145,7 +115,7 @@ export class QuickbookService {
           lastSynced: new Date().toLocaleString(),
         },
       );
-      return processedMetrics;
+      return metrics;
     } catch (error) {
       this.logger.error(
         'Error fetching QuickBooks metrics:',

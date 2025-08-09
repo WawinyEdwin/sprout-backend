@@ -23,9 +23,6 @@ export const validationSchema = Joi.object({
   FACEBOOK_APP_ID: Joi.string().required(),
   FACEBOOK_APP_SECRET: Joi.string().required(),
   FACEBOOK_REDIRECT_URI: Joi.string().uri().required(),
-  STRIPE_API_KEY: Joi.string().required(),
-  STRIPE_REDIRECT_URI: Joi.string().uri().required(),
-  STRIPE_CLIENT_ID: Joi.string().required(),
   QUICKBOOKS_CLIENT_ID: Joi.string().required(),
   QUICKBOOKS_CLIENT_SECRET: Joi.string().required(),
   QUICKBOOKS_REDIRECT_URI: Joi.string().uri().required(),
@@ -35,7 +32,8 @@ export const validationSchema = Joi.object({
   SALESFORCE_CONSUMER_KEY: Joi.string().required(),
   SALESFORCE_CONSUMER_SECRET: Joi.string().required(),
   SALESFORCE_REDIRECT_URI: Joi.string().uri().required(),
-  OPENAI_API_KEY: Joi.string().required()
+  OPENAI_API_KEY: Joi.string().required(),
+  ENCRYPTION_KEY: Joi.string().required()
 });
 
 export default () => ({
