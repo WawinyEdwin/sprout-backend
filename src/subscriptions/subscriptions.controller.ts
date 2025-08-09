@@ -1,5 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common';
-import { SubscriptionPlanEnum } from './subscription.enum';
+import { Body, Controller, Post, Req, Res } from '@nestjs/common';
 import { SubscriptionsService } from './subscriptions.service';
 
 @Controller('subscriptions')
@@ -19,14 +18,9 @@ export class SubscriptionsController {
     );
   }
 
-  @Post('upgrade')
-  async upgrade(
-    @Body() body: { workspaceId: string; plan: SubscriptionPlanEnum },
-  ) {
-    return this.subscriptionsService.upgradeToPaidPlan(
-      body.workspaceId,
-      body.plan,
-    );
+  @Post('manage')
+  async manageBilling(@Body() body: { workspaceId: string }) {
+    return this.subscriptionsService.manageBilling(body.workspaceId);
   }
 
   @Post('webhook/stripe')

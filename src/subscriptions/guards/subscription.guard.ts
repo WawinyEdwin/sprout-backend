@@ -27,7 +27,7 @@ export class SubscriptionGuard implements CanActivate {
 
     const now = new Date();
     const isTrialExpired =
-      subscription.plan === 'Free Trial' && now > subscription.currentPeriodEnd;
+      subscription.plan === 'Free' && now > subscription.currentPeriodEnd;
 
     if (isTrialExpired) {
       throw new ForbiddenException('Trial expired. Please upgrade.');
